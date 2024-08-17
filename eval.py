@@ -15,8 +15,8 @@ def create_env(config):
         num_actions = len(multiwalker.action_space(multiwalker.possible_agents[0]).sample())
         return multiwalker, obs_shape, num_actions
     if config['env_name'] == 'waterworld':
-        waterworld = waterworld_v4.parallel_env(render_mode="human", n_pursuers=config['n_agents'], n_evaders=8, n_poisons=10, n_coop=2, n_sensors=20,\
-                                                sensor_range=0.2,radius=0.015, obstacle_radius=0.2, n_obstacles=1,\
+        waterworld = waterworld_v4.parallel_env(render_mode="human", n_pursuers=config['n_agents'], n_evaders=8, n_poisons=10, n_coop=1, n_sensors=20,\
+                                                sensor_range=0.2,radius=0.015, obstacle_radius=0.2, n_obstacles=0,\
                                                 obstacle_coord=[(0.5, 0.5)], pursuer_max_accel=0.01, evader_speed=0.01,\
                                                 poison_speed=0.01, poison_reward=-1.0, food_reward=10.0, encounter_reward=0.01,\
                                                 thrust_penalty=-0.5, local_ratio=1.0, speed_features=True, max_cycles=config['max_cycles'])

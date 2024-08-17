@@ -3,23 +3,23 @@ import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 from torch.distributions.multivariate_normal import MultivariateNormal
-from torchvision.ops import MLP
 
 class CentralizedPolicy(nn.Module):
-    def __init__(self, n_agents, input_dim, output_dim, device, hidden_dim=(32, 32), continuous=True):
+    def __init__(self, n_agents, input_dim, output_dim, device, continuous=True):
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
-        self.hidden_dim = hidden_dim
         self.n_agents = n_agents
         self.continuous = continuous
         self.device = device
         self.action_var = torch.full((self.output_dim,), 0.6*0.6)
 
-        self.mean = MLP(
-                    in_channels = self.input_dim,
-                    hidden_channels = [dim for dim in self.hidden_dim] + [self.output_dim]
-                )
+        self.mean = nn.Sequential(
+            self._layer_init(nn.Linear(self.input_dim, 32)),
+            nn.ReLU(),
+            self._layer_init(nn.Linear(32, self.output_dim)),
+            nn.ReLU(),
+        )
         
         self.critic = self._layer_init(nn.Linear(self.input_dim, 1))
 

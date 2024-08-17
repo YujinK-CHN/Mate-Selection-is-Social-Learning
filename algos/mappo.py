@@ -24,7 +24,7 @@ class MAPPO():
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
-        self.opt = optim.Adam(self.policy.parameters(), lr=0.0001, eps=1e-5)
+        self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-5)
 
         self.max_cycles = config['max_cycles']
         self.n_skills = config['n_skills']
@@ -184,7 +184,7 @@ class MAPPO():
                 #self.policy.optimize(loss)
 
             print(f"Training episode {episode}")
-            print(f"Episodic Return: {np.mean(total_episodic_return)}")
+            print(f"Episodic Return: {total_episodic_return}")
             print(f"Episodic Loss: {loss.item()}")
             print(f"Episode Length: {end_step}")
             print("\n-------------------------------------------\n")
