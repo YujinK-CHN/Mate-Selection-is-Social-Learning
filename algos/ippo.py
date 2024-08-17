@@ -26,7 +26,6 @@ class IPPO():
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-5)
 
         self.max_cycles = config['max_cycles']
-        self.n_skills = config['n_skills']
         self.n_agents = config['n_agents']
         self.num_actions = config['num_actions']
         self.obs_shape = config['obs_shape']

@@ -16,9 +16,9 @@ class CentralizedPolicy(nn.Module):
 
         self.mean = nn.Sequential(
             self._layer_init(nn.Linear(self.input_dim, 32)),
-            nn.ReLU(),
+            nn.Tanh(),
             self._layer_init(nn.Linear(32, self.output_dim)),
-            nn.ReLU(),
+            nn.Tanh(),
         )
         
         self.critic = self._layer_init(nn.Linear(self.input_dim, 1))
@@ -76,5 +76,5 @@ class CentralizedPolicy(nn.Module):
         return actions, probs.log_prob(actions), entropy, values
     
     def run(self, obs):
-        actions, _, _, _ = self.get_action_and_value(obs)
+        actions, _, _, _ = self.act(obs)
         return actions

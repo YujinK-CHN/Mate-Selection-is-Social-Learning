@@ -16,7 +16,7 @@ def create_env(config):
         return multiwalker, obs_shape, num_actions
     if config['env_name'] == 'waterworld':
         waterworld = waterworld_v4.parallel_env(render_mode="human", n_pursuers=config['n_agents'], n_evaders=8, n_poisons=10, n_coop=1, n_sensors=20,\
-                                                sensor_range=0.2,radius=0.015, obstacle_radius=0.2, n_obstacles=0,\
+                                                sensor_range=0.2,radius=0.015, obstacle_radius=0.2, n_obstacles=1,\
                                                 obstacle_coord=[(0.5, 0.5)], pursuer_max_accel=0.01, evader_speed=0.01,\
                                                 poison_speed=0.01, poison_reward=-1.0, food_reward=10.0, encounter_reward=0.01,\
                                                 thrust_penalty=-0.5, local_ratio=1.0, speed_features=True, max_cycles=config['max_cycles'])
@@ -36,6 +36,7 @@ def run_trained_model(env, model):
             truncs = [False]
             while not any(terms) and not any(truncs):
                 actions = model.run(obs)
+                print(actions)
                 obs, rewards, terms, truncs, infos = env.step(unbatchify(actions, env))
                 obs = batchify_obs(obs, device)
                 terms = [terms[a] for a in terms]
@@ -48,18 +49,15 @@ config = {
         'obs_shape': None,
         'num_actions': None,
         'continuous': True,
-        'n_agents': 5,
-        'n_skills': 1,
+        'n_agents': 1,
         'ent_coef': 0.1,
         'vf_coef': 0.1,
         'clip_coef': 0.1,
         'gamma': 0.99,
-        'max_cycles': 512,
+        'max_cycles': 1024,
         'total_episodes': 128,
-        'manager_lr': 0.0001,
-        'skill_lr': 0.0001
+        'lr': 0.00001
     }
-
 env, obs_shape, num_actions = create_env(config)
 config['obs_shape'] = obs_shape
 config['num_actions'] = num_actions
@@ -81,7 +79,7 @@ model = CentralizedPolicy(
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
-model.load_state_dict(torch.load('./models/waterworld_mappo_5_1_512_128.pt'))
+model.load_state_dict(torch.load('./models/waterworld_mappo_1_1024_128.pt'))
 model.eval()
 model = model.to(device)
 run_trained_model(env, model)
