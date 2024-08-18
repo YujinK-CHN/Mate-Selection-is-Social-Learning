@@ -80,7 +80,7 @@ model = CentralizedPolicy(
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
-model.load_state_dict(torch.load('./models/simple_spread_mappo_1_32_512.pt'))
+model.load_state_dict(torch.load('./models/simple_spread_mappo_1_32_100000.pt'))
 model.eval()
 model = model.to(device)
 run_trained_model(env, model)
