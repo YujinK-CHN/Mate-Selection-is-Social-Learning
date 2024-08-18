@@ -46,7 +46,7 @@ if __name__ == "__main__":
         'gamma': 0.99,
         'max_cycles': 32,
         'total_episodes': 100000,
-        'lr': 0.0001
+        'lr': 0.00001
     }
 
     """ ENV SETUP """
