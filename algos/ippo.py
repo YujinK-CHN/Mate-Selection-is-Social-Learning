@@ -182,7 +182,7 @@ class IPPO():
                 #self.policy.optimize(loss)
 
             print(f"Training episode {episode}")
-            print(f"Episodic Return: {np.mean(total_episodic_return)}")
+            print(f"Episodic Return: {total_episodic_return}")
             print(f"Episodic Loss: {loss.item()}")
             print(f"Episode Length: {end_step}")
             print("\n-------------------------------------------\n")
