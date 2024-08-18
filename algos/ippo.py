@@ -31,7 +31,7 @@ class IPPO():
         self.obs_shape = config['obs_shape']
         self.curr_latent = None
         self.total_episodes = config['total_episodes']
-        self.batch_size = 16
+        self.batch_size = config['n_agents']
         self.gamma = config['gamma']
         self.clip_coef = config['clip_coef']
         self.ent_coef = config['ent_coef']
@@ -42,7 +42,7 @@ class IPPO():
         end_step = 0
         total_episodic_return = 0
         rb_obs = torch.zeros((self.max_cycles, self.n_agents, self.obs_shape)).to(self.device)
-        rb_actions = torch.zeros((self.max_cycles, self.n_agents, self.num_actions)).to(self.device)
+        rb_actions = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_logprobs = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_rewards = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_terms = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
