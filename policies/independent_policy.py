@@ -48,7 +48,7 @@ class IndependentPolicy(nn.Module):
         
         action_probs = torch.stack(
             [
-                actor(x)
+                actor(x[i, :])
                 for i, actor in enumerate(self.pop_actors)
             ],
             dim=-2,

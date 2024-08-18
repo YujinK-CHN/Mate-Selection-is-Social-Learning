@@ -57,5 +57,5 @@ if __name__ == "__main__":
     """ ALGO SETUP """
     ippo = IPPO(env, config)
     mappo = MAPPO(env, config)
-    training(config, algo_list=[mappo])
+    training(config, algo_list=[ippo])
     
