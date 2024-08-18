@@ -39,7 +39,7 @@ if __name__ == "__main__":
         'obs_shape': None,
         'num_actions': None,
         'continuous': False,
-        'n_agents': 1,
+        'n_agents': 3,
         'ent_coef': 0.1,
         'vf_coef': 0.1,
         'clip_coef': 0.1,

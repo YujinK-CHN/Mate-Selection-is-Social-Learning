@@ -56,7 +56,7 @@ config = {
         'obs_shape': None,
         'num_actions': None,
         'continuous': False,
-        'n_agents': 1,
+        'n_agents': 3,
         'max_cycles': 32,
     }
 env, obs_shape, num_actions = create_env(config)
@@ -80,7 +80,7 @@ model = CentralizedPolicy(
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
-model.load_state_dict(torch.load('./models/simple_spread_mappo_1_32_100000.pt'))
+model.load_state_dict(torch.load('./models/simple_spread_mappo_3_32_100000.pt'))
 model.eval()
 model = model.to(device)
 run_trained_model(env, model)
