@@ -27,7 +27,7 @@ class IndependentPolicy(nn.Module):
                 nn.Linear(self.input_dim, 32),
                 nn.Linear(32, 32),
                 nn.Linear(32, self.output_dim),
-                nn.Softmax()
+                nn.Softmax(dim=-1)
             )
             for _ in range(n_agents)
         ])
@@ -57,7 +57,7 @@ class IndependentPolicy(nn.Module):
             ],
             dim=-2,
         )
-
+        
         if self.continuous == False:
             action_dist = Categorical(probs=action_probs)
         else:
