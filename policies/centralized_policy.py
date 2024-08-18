@@ -20,7 +20,11 @@ class CentralizedPolicy(nn.Module):
             nn.Softmax(),
         )
         
-        self.critic = nn.Linear(self.input_dim, 1)
+        self.critic = nn.Sequential(
+                nn.Linear(self.input_dim, 32),
+                nn.Linear(32, 32),
+                nn.Linear(32, 1)
+            )
 
     def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
         torch.nn.init.orthogonal_(layer.weight, std)

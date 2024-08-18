@@ -42,11 +42,11 @@ if __name__ == "__main__":
         'n_agents': 3,
         'ent_coef': 0.1,
         'vf_coef': 0.1,
-        'clip_coef': 0.1,
+        'clip_coef': 0.05,
         'gamma': 0.99,
         'max_cycles': 32,
         'total_episodes': 100000,
-        'lr': 0.00001
+        'lr': 0.000001
     }
 
     """ ENV SETUP """

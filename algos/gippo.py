@@ -1,75 +1,88 @@
 #!/usr/bin/env python
 # coding: utf-8
-
-
-# Genetic Algorithm Level 1 Sample
-
-
+import torch
+import torch.optim as optim
 import numpy as np
+
+from processing.batching import batchify, batchify_obs, unbatchify
+from processing.l0module import L0GateLayer1d, concat_first_linear, concat_last_linear, compress_first_linear, \
+    compress_final_linear
+from loss.ppo_loss import clip_ppo_loss
+from policies.independent_policy import IndependentPolicy
+from policies.centralized_policy import CentralizedPolicy
 import matplotlib.pyplot as plt
 
+class Gippo():
+    def __init__(
+            self,
+            env,
+            config
+    ):
+        self.env = env
+        self.device = config['device']
+        self.name = 'ippo'
+        self.policy = IndependentPolicy(
+            n_agents = config['n_agents'], 
+            input_dim = config['obs_shape'],
+            output_dim = config['num_actions'],
+            continuous = config['continuous'],
+            device = config['device']
+        ).to(config['device'])
+        self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-5)
 
-DNA_SIZE = 10
-POP_SIZE = 100
-CROSS_RATE = 0.8
-MUTATION_RATE = 0.003
-N_GENERATIONS = 200
-X_BOUND = [0, 5]
+        self.max_cycles = config['max_cycles']
+        self.n_agents = config['n_agents']
+        self.num_actions = config['num_actions']
+        self.obs_shape = config['obs_shape']
+        self.curr_latent = None
+        self.total_episodes = config['total_episodes']
+        self.batch_size = config['n_agents']
+        self.gamma = config['gamma']
+        self.clip_coef = config['clip_coef']
+        self.ent_coef = config['ent_coef']
+        self.vf_coef = config['vf_coef']
 
-pop = np.random.randint(0, 2, (1, DNA_SIZE)).repeat(POP_SIZE, axis=0)
-
-def f(x): return np.sin(10*x)*x + np.cos(2*x)*x
-
-
-def get_fitness(pred):
-    return pred + 1e-3 - np.min(pred)
-
-
-def translateDNA(pop):
-    return pop.dot(2 ** np.arange(DNA_SIZE)[::-1]) / float(2**DNA_SIZE-1) * X_BOUND[1]
-
-
-def select(pop, fitness):
-    idx = np.random.choice(np.arange(POP_SIZE), size=POP_SIZE, p=fitness/fitness.sum())
-    return pop[idx]
-
-
-def crossover(parent, pop):
-    if np.random.rand() < CROSS_RATE:
-        i_ = np.random.randint(0, DNA_SIZE, size=1)
-        cross_points = np.random.randint(0, 2, size=DNA_SIZE).astype(np.bool8)
-        parent[cross_points] = pop[i_, cross_points]
-    return parent
-
-
-def mutate(child):
-    for point in range(DNA_SIZE):
-        if np.random.rand() < MUTATION_RATE:
-            child[point] = 1 if child[point] == 0 else 0
-    return child
+        self.crossover_rate = 0.8
+        self.mutation_rate = 0.003
+        self.n_generations = config['total_episodes']
+        self.pop_size = config['n_agents'] * 2
 
 
+    def get_fitness(self, rewards):
+        fitness = rewards
+        return fitness
 
 
-plt.ion()
-x = np.linspace(*X_BOUND, 200)
-plt.plot(x, f(x))
+    def select(self, pop, fitness):
+        idx = np.random.choice(np.arange(self.n_agents), size=self.n_agents, p=fitness/fitness.sum())
+        return pop[idx]
 
-for _ in range(N_GENERATIONS):
-    
-    F_values = f(translateDNA(pop))
-    
-    if 'sca' in globals(): sca.remove()
-    sca = plt.scatter(translateDNA(pop), F_values, s=200, lw=0, c='red', alpha=0.5); plt.pause(0.2)
-    
-    fitness = get_fitness(F_values)
-    pop = select(pop, fitness)
-    pop_copy = pop.copy()
-    for parent in pop:
-        child = crossover(parent, pop_copy)
-        child = mutate(child)
-        parent[:] = child
+
+    def crossover(self, parent1, parent2, pop):
+        offspring = 0
+        return offspring
+
+
+    def mutate(self, child):
+        return child
+
+
+
+    def train(self):
+        plt.ion()
         
-    
-plt.ioff();plt.show()
+        for episode in range(self.n_generations):
+            
+            
+            fitness = get_fitness(F_values)
+            pop = select(pop, fitness)
+            pop_copy = pop.copy()
+            for parent in pop:
+                child = crossover(parent, pop_copy)
+                child = mutate(child)
+                parent[:] = child
+
+
+        plt.plot()
+        plt.ioff();plt.show()
 

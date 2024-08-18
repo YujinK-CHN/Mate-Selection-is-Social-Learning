@@ -1,6 +1,7 @@
 import torch
 import torch.optim as optim
 import numpy as np
+import matplotlib.pyplot as plt
 
 from processing.batching import batchify, batchify_obs, unbatchify
 from loss.ppo_loss import clip_ppo_loss
@@ -39,6 +40,9 @@ class IPPO():
     
     """ TRAINING LOGIC """
     def train(self):
+
+        plt.ion()
+        
         end_step = 0
         total_episodic_return = 0
         rb_obs = torch.zeros((self.max_cycles, self.n_agents, self.obs_shape)).to(self.device)
@@ -183,9 +187,13 @@ class IPPO():
 
             print(f"Training episode {episode}")
             print(f"Episodic Return: {total_episodic_return}")
+            print(f"Episodic Mean Return: {np.mean(total_episodic_return)}")
             print(f"Episodic Loss: {loss.item()}")
             print(f"Episode Length: {end_step}")
             print("\n-------------------------------------------\n")
+
+            plt.plot(episode, np.mean(total_episodic_return))
+        plt.ioff();plt.show()
 
     def save(self, path):
         torch.save(self.policy.state_dict(), path)
