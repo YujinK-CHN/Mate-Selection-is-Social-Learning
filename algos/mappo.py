@@ -43,7 +43,7 @@ class MAPPO():
         end_step = 0
         total_episodic_return = 0
         rb_obs = torch.zeros((self.max_cycles, self.n_agents, self.obs_shape)).to(self.device)
-        rb_actions = torch.zeros((self.max_cycles, self.n_agents, self.num_actions)).to(self.device)
+        rb_actions = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_logprobs = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_rewards = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_terms = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
@@ -120,7 +120,7 @@ class MAPPO():
 
                 _, newlogprob, entropy, value = self.policy.evaluate(
                     x = b_obs[batch_index],
-                    actions = b_actions[batch_index]
+                    actions = b_actions.long()[batch_index]
                 )
                 logratio = newlogprob - b_logprobs[batch_index]
                 ratio = logratio.exp()

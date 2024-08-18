@@ -14,14 +14,13 @@ class CentralizedPolicy(nn.Module):
         self.device = device
         self.action_var = torch.full((self.output_dim,), 0.6*0.6)
 
-        self.mean = nn.Sequential(
-            self._layer_init(nn.Linear(self.input_dim, 32)),
-            nn.Tanh(),
-            self._layer_init(nn.Linear(32, self.output_dim)),
-            nn.Tanh(),
+        self.actor = nn.Sequential(
+            nn.Linear(self.input_dim, 32),
+            nn.Linear(32, self.output_dim),
+            nn.Softmax(),
         )
         
-        self.critic = self._layer_init(nn.Linear(self.input_dim, 1))
+        self.critic = nn.Linear(self.input_dim, 1)
 
     def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
         torch.nn.init.orthogonal_(layer.weight, std)
@@ -34,46 +33,48 @@ class CentralizedPolicy(nn.Module):
         return values
 
     def act(self, x):
-
-        means = self.mean(x)
+        
+        action_probs = self.actor(x)
 
         if self.continuous == False:
-            probs = Categorical(logits=means)
+            action_dist = Categorical(probs=action_probs)
         else:
+            means = action_probs
             if torch.isnan(torch.sum(means)):
                 means = torch.zeros(means.shape).to(self.device)
             cov_matrix = torch.diag(self.action_var).unsqueeze(dim=0).to(self.device)
-            probs = MultivariateNormal(means, cov_matrix)
+            action_dist = MultivariateNormal(means, cov_matrix)
         
-        actions = torch.tanh(probs.sample())
+        actions = action_dist.sample()
 
         values = self.critic(x)
 
-        entropy = torch.fmax(probs.entropy(), torch.full(probs.entropy().shape, 1e-6).to(self.device))
+        entropy = torch.fmax(action_dist.entropy(), torch.full(action_dist.entropy().shape, 1e-6).to(self.device))
 
-        return actions, probs.log_prob(actions), entropy, values
+        return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
     def evaluate(self, x, actions):
 
-        means = self.mean(x)
+        action_probs = self.actor(x)
 
         if self.continuous == False:
-            probs = Categorical(logits=means)
+            action_dist = Categorical(probs=action_probs)
         else:
+            means = action_probs
             if torch.isnan(torch.sum(means)):
                 means = torch.zeros(means.shape).to(self.device)
             action_var = self.action_var.expand_as(means)
             cov_matrix = torch.diag_embed(action_var).to(self.device)
-            probs = MultivariateNormal(means, cov_matrix)
+            action_dist = MultivariateNormal(means, cov_matrix)
 
             if self.output_dim == 1:
                 actions = actions.reshape(-1, self.output_dim)
 
         values = self.critic(x)
 
-        entropy = torch.fmax(probs.entropy(), torch.full(probs.entropy().shape, 1e-6).to(self.device))
+        entropy = torch.fmax(action_dist.entropy(), torch.full(action_dist.entropy().shape, 1e-6).to(self.device))
 
-        return actions, probs.log_prob(actions), entropy, values
+        return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
     def run(self, obs):
         actions, _, _, _ = self.act(obs)

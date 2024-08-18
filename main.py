@@ -1,10 +1,12 @@
 from pettingzoo.sisl import waterworld_v4, multiwalker_v9
+from pettingzoo.mpe import simple_spread_v3
 
 
 import torch
 from pipline.train import training
 from algos.ippo import IPPO
 from algos.mappo import MAPPO
+
 
 def create_env(config):
     if config['env_name'] == 'multiwalker':
@@ -22,13 +24,18 @@ def create_env(config):
         obs_shape = len(waterworld.observation_space(waterworld.possible_agents[0]).sample())
         num_actions = len(waterworld.action_space(waterworld.possible_agents[0]).sample())
         return waterworld, obs_shape, num_actions
+    if config['env_name'] == 'simple_spread':
+        simple_spread = simple_spread_v3.parallel_env(N=config['n_agents'], local_ratio=0.5, max_cycles=config['max_cycles'], continuous_actions=config['continuous'])
+        obs_shape = len(simple_spread.observation_space(simple_spread.possible_agents[0]).sample())
+        num_actions = simple_spread.action_space(simple_spread.possible_agents[0]).n
+        return simple_spread, obs_shape, num_actions
 
 
 if __name__ == "__main__":
     """ALGO PARAMS"""
     config = {
         'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        'env_name': "waterworld",
+        'env_name': "simple_spread",
         'obs_shape': None,
         'num_actions': None,
         'continuous': True,
@@ -37,9 +44,9 @@ if __name__ == "__main__":
         'vf_coef': 0.1,
         'clip_coef': 0.1,
         'gamma': 0.99,
-        'max_cycles': 1024,
-        'total_episodes': 128,
-        'lr': 0.00001
+        'max_cycles': 32,
+        'total_episodes': 100000,
+        'lr': 0.0001
     }
 
     """ ENV SETUP """
