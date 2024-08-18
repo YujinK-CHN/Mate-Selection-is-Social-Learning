@@ -38,7 +38,7 @@ if __name__ == "__main__":
         'env_name': "simple_spread",
         'obs_shape': None,
         'num_actions': None,
-        'continuous': True,
+        'continuous': False,
         'n_agents': 1,
         'ent_coef': 0.1,
         'vf_coef': 0.1,
