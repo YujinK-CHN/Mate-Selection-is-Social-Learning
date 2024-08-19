@@ -40,9 +40,8 @@ class IPPO():
     
     """ TRAINING LOGIC """
     def train(self):
-
-        plt.ion()
         
+        y = []
         end_step = 0
         total_episodic_return = 0
         rb_obs = torch.zeros((self.max_cycles, self.n_agents, self.obs_shape)).to(self.device)
@@ -192,8 +191,11 @@ class IPPO():
             print(f"Episode Length: {end_step}")
             print("\n-------------------------------------------\n")
 
-            plt.plot(episode, np.mean(total_episodic_return))
-        plt.ioff();plt.show()
+            if episode % 1000 == 0:
+                x = np.linspace(0, episode)
+                y.append(np.mean(total_episodic_return))
+                plt.plot(x, y)
+        plt.show()
 
     def save(self, path):
         torch.save(self.policy.state_dict(), path)
