@@ -63,14 +63,14 @@ class IndependentPolicy(nn.Module):
         
         if self.continuous == False:
             action_dist = Categorical(probs=action_probs)
+            actions = action_dist.sample()
         else:
             means = action_probs
             if torch.isnan(torch.sum(means)):
                 means = torch.zeros(means.shape).to(self.device)
             cov_matrix = torch.diag(self.action_var).unsqueeze(dim=0).to(self.device)
             action_dist = MultivariateNormal(means, cov_matrix)
-        
-        actions = torch.tanh(action_dist.sample())
+            actions = torch.tanh(action_dist.sample())
 
         values = torch.stack(
             [

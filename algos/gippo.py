@@ -206,7 +206,12 @@ class Gippo():
 
             ###########################################################################################
             fitness = self.get_fitness(total_episodic_return)
-
+            pop = self.select(pop, fitness)
+            pop_copy = pop.copy()
+            for parent in pop:
+                child = self.crossover(parent, pop_copy)
+                child = self.mutate(child)
+                parent[:] = child
             ###########################################################################################
         plt.show()
 
@@ -224,9 +229,11 @@ class Gippo():
         return pop[idx]
 
 
-    def crossover(self, parent1, parent2, pop):
-        offspring = 0
-        return offspring
+    def crossover(self, parent1, pop):
+        if np.random.rand() < self.crossover_rate:
+            i_ = np.random.randint(0, self.n_agents, size=1)
+            parent2 = pop[i_]
+        return 0
 
 
     def mutate(self, child):
