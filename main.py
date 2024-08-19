@@ -7,6 +7,7 @@ import torch
 from pipline.train import training
 from algos.ippo import IPPO
 from algos.mappo import MAPPO
+from algos.gippo import GIPPO
 
 
 def create_env(config):
@@ -49,7 +50,7 @@ if __name__ == "__main__":
         'gamma': 0.99,
         'max_cycles': 32,
         'batch_size': 4,
-        'total_episodes': 100000,
+        'total_episodes': 30000,
         'lr': 0.0003
     }
 
@@ -61,5 +62,6 @@ if __name__ == "__main__":
     """ ALGO SETUP """
     ippo = IPPO(env, config)
     mappo = MAPPO(env, config)
-    training(config, algo_list=[ippo])
+    gippo = GIPPO(env, config)
+    training(config, algo_list=[gippo])
     

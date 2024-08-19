@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # coding: utf-8
 import torch
+import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+import copy
 
 from processing.batching import batchify, batchify_obs, unbatchify
 from processing.l0module import L0GateLayer1d, concat_first_linear, concat_last_linear, compress_first_linear, \
@@ -12,7 +14,7 @@ from policies.independent_policy import IndependentPolicy
 from policies.centralized_policy import CentralizedPolicy
 import matplotlib.pyplot as plt
 
-class Gippo():
+class GIPPO():
     def __init__(
             self,
             env,
@@ -41,6 +43,7 @@ class Gippo():
         self.clip_coef = config['clip_coef']
         self.ent_coef = config['ent_coef']
         self.vf_coef = config['vf_coef']
+        self.continuous = config['continuous']
 
         self.crossover_rate = 0.8
         self.mutation_rate = 0.003
@@ -206,14 +209,25 @@ class Gippo():
                 plt.pause(0.05)
         
 
-            ###########################################################################################
+            #################################### Genetic Algorithm ####################################
+
+            # population: policy.pop_actors -> nn.ModuleList
+            pop = copy.deepcopy(self.policy.pop_actors)
+
+            # fitness: currently using rewards as fitness for each agents
             fitness = self.get_fitness(total_episodic_return)
+
+            # select: use fitness to compute a probs dist of networks in pop. 
+            # randomly choice individual by the probs dist to reform pop. 
+            # Meaning -> the actor with high rewards are more likely being selected as parents (e.g. the expert)
+            # Selection + crossover + mutation together = full mate selection process to make offsprings.
             pop = self.select(pop, fitness)
-            pop_copy = pop.copy()
-            for parent in pop:
-                child = self.crossover(parent, pop_copy)
+
+            # for each individual,
+            for actor in pop:
+                # give a probability that crossover happens by merging two actors' networks.
+                child = self.crossover(actor, pop)
                 child = self.mutate(child)
-                parent[:] = child
             ###########################################################################################
         plt.show()
 
@@ -221,21 +235,29 @@ class Gippo():
         torch.save(self.policy.state_dict(), path)
 
 
-    def get_fitness(self, rewards):
-        fitness = rewards
-        return fitness
+    def get_fitness(self, rewards: list) -> np.array:
+        # shift rewards to postive value.
+        min_reward = np.min(rewards)
+        shift_constant = np.abs(min_reward) + 1  # Shift to make the minimum reward 1
+        scaled_rewards = np.asarray([r + shift_constant for r in rewards], dtype=np.float32)
+        return scaled_rewards
 
 
-    def select(self, pop, fitness):
+    def select(self, pop: torch.nn.ModuleList, fitness: np.array) -> torch.nn.ModuleList:
         idx = np.random.choice(np.arange(self.n_agents), size=self.n_agents, p=fitness/fitness.sum())
-        return pop[idx]
+        new_pop = copy.deepcopy(pop)
+        for i, actor in enumerate(new_pop):
+            actor = pop[idx[i]]
+        return new_pop
 
 
-    def crossover(self, parent1, pop):
+    def crossover(self, parent1: torch.nn.Sequential, pop: torch.nn.ModuleList) -> torch.nn.Sequential:
         if np.random.rand() < self.crossover_rate:
+            child = 0
             i_ = np.random.randint(0, self.n_agents, size=1)
-            parent2 = pop[i_]
-        return 0
+            parent2 = pop[i_.item()]
+
+        return child
 
 
     def mutate(self, child):
