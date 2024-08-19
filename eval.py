@@ -56,7 +56,7 @@ config = {
         'obs_shape': None,
         'num_actions': None,
         'continuous': False,
-        'n_agents': 3,
+        'n_agents': 2,
         'max_cycles': 32,
     }
 env, obs_shape, num_actions = create_env(config)
@@ -64,7 +64,7 @@ config['obs_shape'] = obs_shape
 config['num_actions'] = num_actions
 device = config['device']
 
-'''
+
 model = IndependentPolicy(
             n_agents = config['n_agents'], 
             input_dim = config['obs_shape'],
@@ -80,7 +80,8 @@ model = CentralizedPolicy(
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
-model.load_state_dict(torch.load('./models/simple_spread_mappo_3_32_100000.pt'))
+'''
+model.load_state_dict(torch.load('./models/simple_spread_ippo_2_32_100000.pt'))
 model.eval()
 model = model.to(device)
 run_trained_model(env, model)
