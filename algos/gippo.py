@@ -36,7 +36,7 @@ class Gippo():
         self.obs_shape = config['obs_shape']
         self.curr_latent = None
         self.total_episodes = config['total_episodes']
-        self.batch_size = config['n_agents']
+        self.batch_size = config['batch_size']
         self.gamma = config['gamma']
         self.clip_coef = config['clip_coef']
         self.ent_coef = config['ent_coef']
@@ -54,7 +54,10 @@ class Gippo():
         end_step = 0
         total_episodic_return = 0
         rb_obs = torch.zeros((self.max_cycles, self.n_agents, self.obs_shape)).to(self.device)
-        rb_actions = torch.zeros((self.max_cycles, self.n_agents, self.num_actions)).to(self.device)
+        if self.continuous == True:
+            rb_actions = torch.zeros((self.max_cycles, self.n_agents, self.num_actions)).to(self.device)
+        else:
+            rb_actions = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_logprobs = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_rewards = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_terms = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
@@ -75,7 +78,7 @@ class Gippo():
                     obs = batchify_obs(next_obs, self.device)
 
                     # get actions from skills
-                    actions, logprobs, entropy, values = self.policy.act(obs)
+                    actions, logprobs, entropy, values = self.policy.act(obs) # obs: [n, obs_shape]
 
                     # execute the environment and log data
                     next_obs, rewards, terms, truncs, infos = self.env.step(
@@ -109,32 +112,30 @@ class Gippo():
                     rb_advantages[t] = delta + self.gamma * self.gamma * rb_advantages[t + 1]
                 rb_returns = rb_advantages + rb_values
 
-            # convert our episodes to batch of individual transitions
-            b_obs = torch.flatten(rb_obs[:end_step], start_dim=0, end_dim=1)
-            b_logprobs = torch.flatten(rb_logprobs[:end_step], start_dim=0, end_dim=1)
-            b_actions = torch.flatten(rb_actions[:end_step], start_dim=0, end_dim=1)
-            b_returns = torch.flatten(rb_returns[:end_step], start_dim=0, end_dim=1)
-            b_values = torch.flatten(rb_values[:end_step], start_dim=0, end_dim=1)
-            b_advantages = torch.flatten(rb_advantages[:end_step], start_dim=0, end_dim=1)
 
 
             # Optimizing the policy and value network
-            b_index = np.arange(len(b_obs))
+            rb_index = np.arange(rb_obs.shape[0])
             clip_fracs = []
             
             # shuffle the indices we use to access the data
-            np.random.shuffle(b_index)
-            for start in range(0, len(b_obs), self.batch_size):
+            np.random.shuffle(rb_index)
+            for start in range(0, rb_obs.shape[0], self.batch_size):
                 # select the indices we want to train on
                 end = start + self.batch_size
-                batch_index = b_index[start:end]
+                batch_index = rb_index[start:end]
 
-                _, newlogprob, entropy, value = self.policy.evaluate(
-                    x = b_obs[batch_index],
-                    actions = b_actions.long()[batch_index]
+                if self.continuous == True:
+                    old_actions = rb_actions.long()[batch_index, :, :]
+                else:
+                    old_actions = rb_actions.long()[batch_index, :]
+                _, newlogprob, entropy, values = self.policy.evaluate(
+                    x = rb_obs[batch_index, :, :],
+                    actions = old_actions
                 )
 
-                logratio = newlogprob - b_logprobs[batch_index]
+                
+                logratio = newlogprob - rb_logprobs[batch_index, :]
                 ratio = logratio.exp()
 
                 with torch.no_grad():
@@ -146,27 +147,27 @@ class Gippo():
                     ]
 
                 # normalize advantaegs
-                advantages = b_advantages[batch_index]
+                advantages = rb_advantages[batch_index, :]
                 advantages = (advantages - advantages.mean()) / (
                     advantages.std() + 1e-8
                 )
 
                 # Policy loss
-                pg_loss1 = -b_advantages[batch_index] * ratio
-                pg_loss2 = -b_advantages[batch_index] * torch.clamp(
+                pg_loss1 = -rb_advantages[batch_index, :] * ratio
+                pg_loss2 = -rb_advantages[batch_index, :] * torch.clamp(
                     ratio, 1 - self.clip_coef, 1 + self.clip_coef
                 )
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
-                value = value.flatten()
-                v_loss_unclipped = (value - b_returns[batch_index]) ** 2
-                v_clipped = b_values[batch_index] + torch.clamp(
-                    value - b_values[batch_index],
+                values = values.squeeze(-1)
+                v_loss_unclipped = (values - rb_returns[batch_index, :]) ** 2
+                v_clipped = rb_values[batch_index, :] + torch.clamp(
+                    values - rb_values[batch_index, :],
                     -self.clip_coef,
                     self.clip_coef,
                 )
-                v_loss_clipped = (v_clipped - b_returns[batch_index]) ** 2
+                v_loss_clipped = (v_clipped - rb_returns[batch_index, :]) ** 2
                 v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
                 v_loss = 0.5 * v_loss_max.mean()
 
@@ -200,9 +201,10 @@ class Gippo():
 
             x = np.linspace(0, episode, episode+1)
             y.append(np.mean(total_episodic_return))
-            if episode % 100 == 0:
+            if episode % 10000 == 0:
                 plt.plot(x, y)
                 plt.pause(0.05)
+        
 
             ###########################################################################################
             fitness = self.get_fitness(total_episodic_return)
