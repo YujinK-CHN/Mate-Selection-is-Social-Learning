@@ -1,3 +1,9 @@
+"""Uses Stable-Baselines3 to train agents to play the Waterworld environment using SuperSuit vector envs.
+
+For more information, see https://stable-baselines3.readthedocs.io/en/master/modules/ppo.html
+
+Author: Elliot (https://github.com/elliottower)
+"""
 from __future__ import annotations
 
 import glob
@@ -5,8 +11,8 @@ import os
 import time
 
 import supersuit as ss
-from algos.ppo import PPO
-from policies.policies import ActorCriticPolicy
+from stable_baselines3 import PPO
+from stable_baselines3.ppo import MlpPolicy
 
 from pettingzoo.sisl import waterworld_v4
 
@@ -26,7 +32,7 @@ def train_butterfly_supersuit(
 
     # Note: Waterworld's observation space is discrete (242,) so we use an MLP policy rather than CNN
     model = PPO(
-        ActorCriticPolicy,
+        MlpPolicy,
         env,
         verbose=3,
         learning_rate=1e-3,

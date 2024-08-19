@@ -16,18 +16,17 @@ def create_env(config):
         obs_shape = len(multiwalker.observation_space(multiwalker.possible_agents[0]).sample())
         num_actions = len(multiwalker.action_space(multiwalker.possible_agents[0]).sample())
         return multiwalker, obs_shape, num_actions
+    
     if config['env_name'] == 'waterworld':
         waterworld = waterworld_v4.parallel_env(n_pursuers=config['n_agents'], n_evaders=8, n_poisons=10, n_coop=1, n_sensors=20,\
                                                 sensor_range=0.2,radius=0.015, obstacle_radius=0.2, n_obstacles=1,\
                                                 obstacle_coord=[(0.5, 0.5)], pursuer_max_accel=0.01, evader_speed=0.01,\
                                                 poison_speed=0.01, poison_reward=-1.0, food_reward=10.0, encounter_reward=0.01,\
-                                                thrust_penalty=-0.5, local_ratio=1.0, speed_features=True, max_cycles=config['max_cycles'])
-        waterworld.reset(seed=1)
-        waterworld = ss.pettingzoo_env_to_vec_env_v1(waterworld)
-        waterworld = ss.concat_vec_envs_v1(waterworld, 8, base_class="stable_baselines3")
+                                                thrust_penalty=-0.0, local_ratio=1.0, speed_features=True, max_cycles=config['max_cycles'])
         obs_shape = len(waterworld.observation_space(waterworld.possible_agents[0]).sample())
         num_actions = len(waterworld.action_space(waterworld.possible_agents[0]).sample())
         return waterworld, obs_shape, num_actions
+    
     if config['env_name'] == 'simple_spread':
         simple_spread = simple_spread_v3.parallel_env(N=config['n_agents'], local_ratio=0.5, max_cycles=config['max_cycles'], continuous_actions=config['continuous'])
         obs_shape = len(simple_spread.observation_space(simple_spread.possible_agents[0]).sample())
@@ -48,15 +47,14 @@ if __name__ == "__main__":
         'vf_coef': 0.1,
         'clip_coef': 0.05,
         'gamma': 0.99,
-        'max_cycles': 512,
+        'max_cycles': 1024,
+        'batch_size': 256,
         'total_episodes': 10000,
-        'lr': 0.0001
+        'lr': 0.0003
     }
 
     """ ENV SETUP """
     env, obs_shape, num_actions = create_env(config)
-    print(obs_shape)
-    print(num_actions)
     config['obs_shape'] = obs_shape
     config['num_actions'] = num_actions
 

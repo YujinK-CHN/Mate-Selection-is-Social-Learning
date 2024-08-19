@@ -20,7 +20,8 @@ class IndependentPolicy(nn.Module):
                 nn.Linear(self.input_dim, 32),
                 nn.Linear(32, 32),
                 nn.Linear(32, self.output_dim),
-                nn.Tanh()
+                nn.Tanh(),
+                # nn.Softmax(dim=-1)
             )
             for _ in range(n_agents)
         ])
@@ -85,11 +86,12 @@ class IndependentPolicy(nn.Module):
 
         action_probs = torch.stack(
             [
-                actor(x)
+                actor(x[:, i, :])
                 for i, actor in enumerate(self.pop_actors)
             ],
             dim=-2,
         )
+        #print(action_probs.shape) [B, N, 2]
 
         if self.continuous == False:
             action_dist = Categorical(probs=action_probs)
@@ -103,7 +105,7 @@ class IndependentPolicy(nn.Module):
 
         values = torch.stack(
             [
-                critic(x[i, :])
+                critic(x[:, i, :])
                 for i, critic in enumerate(self.pop_critic)
             ],
             dim=-2,
