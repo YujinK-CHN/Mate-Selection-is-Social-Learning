@@ -1,5 +1,6 @@
 from pettingzoo.sisl import waterworld_v4, multiwalker_v9
 from pettingzoo.mpe import simple_spread_v3
+import supersuit as ss
 
 
 import torch
@@ -21,6 +22,9 @@ def create_env(config):
                                                 obstacle_coord=[(0.5, 0.5)], pursuer_max_accel=0.01, evader_speed=0.01,\
                                                 poison_speed=0.01, poison_reward=-1.0, food_reward=10.0, encounter_reward=0.01,\
                                                 thrust_penalty=-0.5, local_ratio=1.0, speed_features=True, max_cycles=config['max_cycles'])
+        waterworld.reset(seed=1)
+        waterworld = ss.pettingzoo_env_to_vec_env_v1(waterworld)
+        waterworld = ss.concat_vec_envs_v1(waterworld, 8, base_class="stable_baselines3")
         obs_shape = len(waterworld.observation_space(waterworld.possible_agents[0]).sample())
         num_actions = len(waterworld.action_space(waterworld.possible_agents[0]).sample())
         return waterworld, obs_shape, num_actions
@@ -35,22 +39,24 @@ if __name__ == "__main__":
     """ALGO PARAMS"""
     config = {
         'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        'env_name': "simple_spread",
+        'env_name': "waterworld",
         'obs_shape': None,
         'num_actions': None,
-        'continuous': False,
-        'n_agents': 3,
+        'continuous': True,
+        'n_agents': 1,
         'ent_coef': 0.1,
         'vf_coef': 0.1,
         'clip_coef': 0.05,
         'gamma': 0.99,
-        'max_cycles': 32,
-        'total_episodes': 100000,
-        'lr': 0.000001
+        'max_cycles': 512,
+        'total_episodes': 10000,
+        'lr': 0.0001
     }
 
     """ ENV SETUP """
     env, obs_shape, num_actions = create_env(config)
+    print(obs_shape)
+    print(num_actions)
     config['obs_shape'] = obs_shape
     config['num_actions'] = num_actions
 

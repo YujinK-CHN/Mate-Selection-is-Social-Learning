@@ -13,30 +13,26 @@ class IndependentPolicy(nn.Module):
         self.n_agents = n_agents
         self.continuous = continuous
         self.device = device
-
-        '''
-        self.actor = nn.Sequential(
-            nn.Linear(self.input_dim, 32),
-            nn.Linear(32, self.output_dim),
-            nn.Softmax(),
-        )
-        '''
+        self.action_var = torch.full((self.output_dim,), 0.6*0.6)
 
         self.pop_actors = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(self.input_dim, 32),
                 nn.Linear(32, 32),
                 nn.Linear(32, self.output_dim),
-                nn.Softmax(dim=-1)
+                nn.Tanh()
             )
             for _ in range(n_agents)
         ])
         
-        self.critic = nn.Sequential(
+        self.pop_critic = nn.ModuleList([
+            nn.Sequential(
                 nn.Linear(self.input_dim, 32),
                 nn.Linear(32, 32),
                 nn.Linear(32, 1)
             )
+            for _ in range(n_agents)
+        ])
 
     def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
         torch.nn.init.orthogonal_(layer.weight, std)
@@ -45,7 +41,13 @@ class IndependentPolicy(nn.Module):
 
     def get_value(self, x):
 
-        values = self.critic(x)
+        values = torch.stack(
+            [
+                critic(x[i, :])
+                for i, critic in enumerate(self.pop_critic)
+            ],
+            dim=-2,
+        )
         return values
 
     def act(self, x):
@@ -67,9 +69,15 @@ class IndependentPolicy(nn.Module):
             cov_matrix = torch.diag(self.action_var).unsqueeze(dim=0).to(self.device)
             action_dist = MultivariateNormal(means, cov_matrix)
         
-        actions = action_dist.sample()
+        actions = torch.tanh(action_dist.sample())
 
-        values = self.critic(x)
+        values = torch.stack(
+            [
+                critic(x[i, :])
+                for i, critic in enumerate(self.pop_critic)
+            ],
+            dim=-2,
+        )
 
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
@@ -93,10 +101,13 @@ class IndependentPolicy(nn.Module):
             cov_matrix = torch.diag_embed(action_var).to(self.device)
             action_dist = MultivariateNormal(means, cov_matrix)
 
-            if self.output_dim == 1:
-                actions = actions.reshape(-1, self.output_dim)
-
-        values = self.critic(x)
+        values = torch.stack(
+            [
+                critic(x[i, :])
+                for i, critic in enumerate(self.pop_critic)
+            ],
+            dim=-2,
+        )
 
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     

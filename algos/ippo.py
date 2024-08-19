@@ -45,7 +45,7 @@ class IPPO():
         end_step = 0
         total_episodic_return = 0
         rb_obs = torch.zeros((self.max_cycles, self.n_agents, self.obs_shape)).to(self.device)
-        rb_actions = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
+        rb_actions = torch.zeros((self.max_cycles, self.n_agents, self.num_actions)).to(self.device)
         rb_logprobs = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_rewards = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_terms = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
@@ -180,9 +180,6 @@ class IPPO():
                 self.opt.zero_grad()
                 loss.backward()
                 self.opt.step()
-                #self.policy.optimize_h(h_loss)
-                #self.policy.optimize_l(l_loss)
-                #self.policy.optimize(loss)
 
             print(f"Training episode {episode}")
             print(f"Episodic Return: {total_episodic_return}")
@@ -191,10 +188,11 @@ class IPPO():
             print(f"Episode Length: {end_step}")
             print("\n-------------------------------------------\n")
 
-            if episode % 1000 == 0:
-                x = np.linspace(0, episode)
-                y.append(np.mean(total_episodic_return))
+            x = np.linspace(0, episode, episode+1)
+            y.append(np.mean(total_episodic_return))
+            if episode % 100 == 0:
                 plt.plot(x, y)
+                plt.pause(0.05)
         plt.show()
 
     def save(self, path):
