@@ -38,18 +38,18 @@ if __name__ == "__main__":
     """ALGO PARAMS"""
     config = {
         'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        'env_name': "waterworld",
+        'env_name': "simple_spread",
         'obs_shape': None,
         'num_actions': None,
-        'continuous': True,
-        'n_agents': 1,
+        'continuous': False,
+        'n_agents': 2,
         'ent_coef': 0.1,
         'vf_coef': 0.1,
-        'clip_coef': 0.05,
+        'clip_coef': 0.1,
         'gamma': 0.99,
-        'max_cycles': 1024,
-        'batch_size': 256,
-        'total_episodes': 10000,
+        'max_cycles': 32,
+        'batch_size': 4,
+        'total_episodes': 100000,
         'lr': 0.0003
     }
 

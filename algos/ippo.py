@@ -37,6 +37,7 @@ class IPPO():
         self.clip_coef = config['clip_coef']
         self.ent_coef = config['ent_coef']
         self.vf_coef = config['vf_coef']
+        self.continuous = config['continuous']
     
     """ TRAINING LOGIC """
     def train(self):
@@ -45,7 +46,10 @@ class IPPO():
         end_step = 0
         total_episodic_return = 0
         rb_obs = torch.zeros((self.max_cycles, self.n_agents, self.obs_shape)).to(self.device)
-        rb_actions = torch.zeros((self.max_cycles, self.n_agents, self.num_actions)).to(self.device)
+        if self.continuous == True:
+            rb_actions = torch.zeros((self.max_cycles, self.n_agents, self.num_actions)).to(self.device)
+        else:
+            rb_actions = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_logprobs = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_rewards = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         rb_terms = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
@@ -113,9 +117,13 @@ class IPPO():
                 end = start + self.batch_size
                 batch_index = rb_index[start:end]
 
-                _, newlogprob, entropy, value = self.policy.evaluate(
+                if self.continuous == True:
+                    old_actions = rb_actions.long()[batch_index, :, :]
+                else:
+                    old_actions = rb_actions.long()[batch_index, :]
+                _, newlogprob, entropy, values = self.policy.evaluate(
                     x = rb_obs[batch_index, :, :],
-                    actions = rb_actions.long()[batch_index, :, :]
+                    actions = old_actions
                 )
 
                 
@@ -144,10 +152,10 @@ class IPPO():
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
-                value = value.flatten()
-                v_loss_unclipped = (value - rb_returns[batch_index, :]) ** 2
+                values = values.squeeze(-1)
+                v_loss_unclipped = (values - rb_returns[batch_index, :]) ** 2
                 v_clipped = rb_values[batch_index, :] + torch.clamp(
-                    value - rb_values[batch_index, :],
+                    values - rb_values[batch_index, :],
                     -self.clip_coef,
                     self.clip_coef,
                 )
@@ -185,7 +193,7 @@ class IPPO():
 
             x = np.linspace(0, episode, episode+1)
             y.append(np.mean(total_episodic_return))
-            if episode % 100 == 0:
+            if episode % 10000 == 0:
                 plt.plot(x, y)
                 plt.pause(0.05)
         plt.show()

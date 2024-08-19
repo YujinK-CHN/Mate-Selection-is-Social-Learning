@@ -20,8 +20,8 @@ class IndependentPolicy(nn.Module):
                 nn.Linear(self.input_dim, 32),
                 nn.Linear(32, 32),
                 nn.Linear(32, self.output_dim),
-                nn.Tanh(),
-                # nn.Softmax(dim=-1)
+                #nn.Tanh(),
+                nn.Softmax(dim=-1)
             )
             for _ in range(n_agents)
         ])
