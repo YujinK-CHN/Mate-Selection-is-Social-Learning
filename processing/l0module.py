@@ -132,11 +132,9 @@ class L0GateLayer(nn.Module):
         self.gamma_zeta_ratio = math.log(-gamma / zeta)
 
     def mask(self, x):
-        batch_size = x.shape[0]
-        if batch_size > self.uniform.shape[0]:
-            self.uniform = torch.zeros((batch_size, self.n_features), device=self.uniform.device)
+        self.uniform = torch.zeros((self.n_features), device=self.uniform.device)
         self.uniform.uniform_()
-        u = self.uniform[:batch_size]
+        u = self.uniform[:self.n_features]
         s = torch.sigmoid((torch.log(u) - torch.log(1 - u) + self.loc) / self.temp)
         s = s * (self.zeta - self.gamma) + self.gamma
         return hard_sigmoid(s)
@@ -164,6 +162,7 @@ class L0GateLayer1d(L0GateLayer):
         if mask is None:
             mask = self.mask(x)
         x = x * mask
+        
         return x
 
 
@@ -172,11 +171,13 @@ class L0GateLayer2d(L0GateLayer):
         super(L0GateLayer2d, self).__init__(n_channels, loc_mean, loc_sd, beta, gamma, zeta, fix_temp)
 
     def forward(self, x, mask=None):
+        print(x.shape)
         if mask is None:
             mask = self.mask(x)
         x = x.permute(2, 3, 0, 1)
         x = x * mask
         x = x.permute(2, 3, 0, 1)
+        print(x.shape)
         return x
 
 

@@ -22,7 +22,7 @@ class GIPPO():
     ):
         self.env = env
         self.device = config['device']
-        self.name = 'ippo'
+        self.name = 'gippo'
         self.policy = IndependentPolicy(
             n_agents = config['n_agents'], 
             input_dim = config['obs_shape'],
@@ -32,32 +32,27 @@ class GIPPO():
         ).to(config['device'])
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-5)
 
-        self.pop_gates = nn.ModuleList([
-            L0GateLayer1d(n_features=64)
-            for _ in range(config['n_agents'])
-        ])
-        self.opt_gate = optim.Adam(self.pop_gates.parameters(), lr=0.01, eps=1e-5)
+        self.pop_gates = None # reset at each time evolve.
+        self.opt_gate = optim.SGD(self.pop_gates.parameters(), lr=0.001, momentum=0.9)
 
         self.max_cycles = config['max_cycles']
         self.n_agents = config['n_agents']
         self.num_actions = config['num_actions']
         self.obs_shape = config['obs_shape']
-        self.curr_latent = None
+        self.hidden_size = 32
         self.total_episodes = config['total_episodes']
         self.batch_size = config['batch_size']
         self.gamma = config['gamma']
-        self.alpha = 0.01
         self.clip_coef = config['clip_coef']
         self.ent_coef = config['ent_coef']
         self.vf_coef = config['vf_coef']
         self.continuous = config['continuous']
 
         # GA hyperparameters
+        self.alpha = 0.01
         self.crossover_rate = 1.0
         self.mutation_rate = 0.003
-        self.n_generations = config['total_episodes']
-        self.pop_size = config['n_agents'] * 2
-        self.evolution_period = 500
+        self.evolution_period = 1000
         self.merging_period = 250
         self.merging = None
 
@@ -87,18 +82,25 @@ class GIPPO():
                     important_indices = gate.important_indices()
                     self.policy.pop_actors[i] = nn.Sequential(
                         compress_first_linear(self.policy.pop_actors[i][0], important_indices),
-                        compress_middle_linear(self.policy.pop_actors[i][1], important_indices),
-                        compress_final_linear(self.policy.pop_actors[i][1], important_indices),
+                        compress_middle_linear(self.policy.pop_actors[i][1], torch.arange(self.hidden_size), important_indices),
+                        compress_final_linear(self.policy.pop_actors[i][-2], important_indices),
                         nn.Softmax(dim=-1)
                     )
-                print(self.policy.pop_actors)
+                
                 self.merging = False # means merging is done -> start to finetune.
 
-            # evolve every 500 eps.
+            # evolve every _ eps.
             if episode % self.evolution_period == 0:
                 #################################### Genetic Algorithm ####################################
 
+                # reset gates.
+                self.pop_gates = nn.ModuleList([
+                    L0GateLayer1d(n_features=64)
+                    for _ in range(self.n_agents)
+                ])
+
                 # population: policy.pop_actors -> nn.ModuleList
+                pop = copy.deepcopy(self.policy.pop_actors)
                 # fitness: currently using rewards as fitness for each agents
                 fitness = self.get_fitness(total_episodic_return)
 
@@ -111,18 +113,21 @@ class GIPPO():
                 # for each individual,
                 for i, actor in enumerate(self.policy.pop_actors):
                     # give a probability that crossover happens by merging two actors' networks.
-                    child = self.crossover(actor, self.pop_gates[i], self.policy.pop_actors)
+                    child = self.crossover(actor, self.pop_gates[i], pop)
                     #child = self.mutate(child)
-                    actor = child
-                ###########################################################################################
+                    self.policy.pop_actors[i] = child
+                self.policy.pop_actors = self.policy.pop_actors.to(self.device)
+                
                 self.merging = True
+                ###########################################################################################
+                
             
             
 
             # collect an episode
             with torch.no_grad():
                 # collect observations and convert to batch of torch tensors
-                next_obs, info = self.env.reset(seed=None)
+                next_obs, info = self.env.reset(seed=0)
                 # reset the episodic return
                 total_episodic_return = 0
 
@@ -223,11 +228,7 @@ class GIPPO():
             if episode % 10000 == 0:
                 plt.plot(x, y)
                 plt.pause(0.05)
-        
-            
-                    
-
-            
+         
         plt.show()
 
     def save(self, path):
@@ -309,12 +310,12 @@ class GIPPO():
                     entropy_loss = entropy.mean()
                     loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
 
-                    l0_loss = []
-                    for gate in self.pop_gates:
-                        l0_loss.append(self.alpha * gate.l0_loss().item())
-                    l0_loss = torch.Tensor(l0_loss).mean().to(self.device)
+                    l0_loss = torch.Tensor((self.n_agents))
+                    for i, gate in enumerate(self.pop_gates):
+                        l0_loss[i] = self.alpha * gate.l0_loss()
+                    #print(l0_loss)
 
-                    loss = loss + l0_loss
+                    loss = loss + l0_loss.mean()
 
                     self.opt.zero_grad()
                     self.opt_gate.zero_grad()
