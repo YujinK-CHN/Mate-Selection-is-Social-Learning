@@ -7,8 +7,8 @@ import numpy as np
 import copy
 
 from processing.batching import batchify, batchify_obs, unbatchify
-from processing.l0module import L0GateLayer1d, concat_first_linear, concat_last_linear, compress_first_linear, \
-    compress_final_linear
+from processing.l0module import L0GateLayer1d, concat_first_linear, concat_middle_linear, concat_last_linear,  \
+    compress_first_linear, compress_middle_linear, compress_final_linear
 from loss.ppo_loss import clip_ppo_loss
 from policies.independent_policy import IndependentPolicy
 from policies.centralized_policy import CentralizedPolicy
@@ -23,6 +23,7 @@ class GIPPO():
         self.env = env
         self.device = config['device']
         self.name = 'ippo'
+        self.children
         self.policy = IndependentPolicy(
             n_agents = config['n_agents'], 
             input_dim = config['obs_shape'],
@@ -31,6 +32,11 @@ class GIPPO():
             device = config['device']
         ).to(config['device'])
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-5)
+
+        self.pop_gates = nn.ModuleList([
+            L0GateLayer1d(n_features=64)
+            for _ in range(config['n_agents'])
+        ])
 
         self.max_cycles = config['max_cycles']
         self.n_agents = config['n_agents']
@@ -45,7 +51,7 @@ class GIPPO():
         self.vf_coef = config['vf_coef']
         self.continuous = config['continuous']
 
-        self.crossover_rate = 0.8
+        self.crossover_rate = 1.0
         self.mutation_rate = 0.003
         self.n_generations = config['total_episodes']
         self.pop_size = config['n_agents'] * 2
@@ -253,10 +259,16 @@ class GIPPO():
 
     def crossover(self, parent1: torch.nn.Sequential, pop: torch.nn.ModuleList) -> torch.nn.Sequential:
         if np.random.rand() < self.crossover_rate:
-            child = 0
             i_ = np.random.randint(0, self.n_agents, size=1)
             parent2 = pop[i_.item()]
-
+            child = nn.Sequential(
+                concat_first_linear(parent1[0], parent2[0]),
+                concat_middle_linear(parent1[1], parent2[1]),
+                L0GateLayer1d(n_features=64),
+                concat_last_linear(parent1[2], parent2[2]),
+                nn.Softmax(dim=-1)
+            )
+            gate = child[2]
         return child
 
 
