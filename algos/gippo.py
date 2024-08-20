@@ -66,7 +66,7 @@ class GIPPO():
         
         y = []
         end_step = 0
-        total_episodic_return = 0
+        total_episodic_return = [0 for _ in range(self.n_agents)]
         rb_obs = torch.zeros((self.max_cycles, self.n_agents, self.obs_shape)).to(self.device)
         if self.continuous == True:
             rb_actions = torch.zeros((self.max_cycles, self.n_agents, self.num_actions)).to(self.device)
@@ -79,6 +79,21 @@ class GIPPO():
         
         # train for n number of episodes
         for episode in range(self.total_episodes):
+
+            # after children born, use 250 eps for merging (train the gates).
+            # then, compress the big student and finetune until next evolution.
+            if episode % self.merging_period == 0 and self.merging == True:
+                for i, gate in enumerate(self.pop_gates):
+                    important_indices = gate.important_indices()
+                    self.policy.pop_actors[i] = nn.Sequential(
+                        compress_first_linear(self.policy.pop_actors[i][0], important_indices),
+                        compress_middle_linear(self.policy.pop_actors[i][1], important_indices),
+                        compress_final_linear(self.policy.pop_actors[i][1], important_indices),
+                        nn.Softmax(dim=-1)
+                    )
+                print(self.policy.pop_actors)
+                self.merging = False # means merging is done -> start to finetune.
+
             # evolve every 500 eps.
             if episode % self.evolution_period == 0:
                 #################################### Genetic Algorithm ####################################
@@ -102,19 +117,7 @@ class GIPPO():
                 ###########################################################################################
                 self.merging = True
             
-            # after children born, use 250 eps for merging (train the gates).
-            # then, compress the big student and finetune until next evolution.
-            if episode % self.merging_period == 0:
-                for i, gate in enumerate(self.pop_gates):
-                    important_indices = gate.important_indices()
-                    self.policy.pop_actors[i] = nn.Sequential(
-                        compress_first_linear(self.policy.pop_actors[i][0], important_indices),
-                        compress_middle_linear(self.policy.pop_actors[i][1], important_indices),
-                        compress_final_linear(self.policy.pop_actors[i][1], important_indices),
-                        nn.Softmax(dim=-1)
-                    )
-                print(self.policy.pop_actors)
-                self.merging = False # means merging is done -> start to finetune.
+            
 
             # collect an episode
             with torch.no_grad():
@@ -168,7 +171,6 @@ class GIPPO():
 
             # Optimizing the policy and value network
             rb_index = np.arange(rb_obs.shape[0])
-            clip_fracs = []
             
             # shuffle the indices we use to access the data
             np.random.shuffle(rb_index)
@@ -279,14 +281,6 @@ class GIPPO():
                     logratio = newlogprob - rb_logprobs
                     ratio = logratio.exp()
 
-                    with torch.no_grad():
-                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                        old_approx_kl = (-logratio).mean()
-                        approx_kl = ((ratio - 1) - logratio).mean()
-                        clip_fracs += [
-                            ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
-                        ]
-
                     # normalize advantaegs
                     advantages = rb_advantages
                     advantages = (advantages - advantages.mean()) / (
@@ -343,14 +337,6 @@ class GIPPO():
                 ):
                     logratio = newlogprob - rb_logprobs
                     ratio = logratio.exp()
-
-                    with torch.no_grad():
-                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                        old_approx_kl = (-logratio).mean()
-                        approx_kl = ((ratio - 1) - logratio).mean()
-                        clip_fracs += [
-                            ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
-                        ]
 
                     # normalize advantaegs
                     advantages = rb_advantages
