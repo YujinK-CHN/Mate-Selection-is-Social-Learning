@@ -23,7 +23,6 @@ class GIPPO():
         self.env = env
         self.device = config['device']
         self.name = 'ippo'
-        self.children
         self.policy = IndependentPolicy(
             n_agents = config['n_agents'], 
             input_dim = config['obs_shape'],
@@ -37,6 +36,7 @@ class GIPPO():
             L0GateLayer1d(n_features=64)
             for _ in range(config['n_agents'])
         ])
+        self.opt_gate = optim.Adam(self.pop_gates.parameters(), lr=0.01, eps=1e-5)
 
         self.max_cycles = config['max_cycles']
         self.n_agents = config['n_agents']
@@ -46,15 +46,20 @@ class GIPPO():
         self.total_episodes = config['total_episodes']
         self.batch_size = config['batch_size']
         self.gamma = config['gamma']
+        self.alpha = 0.01
         self.clip_coef = config['clip_coef']
         self.ent_coef = config['ent_coef']
         self.vf_coef = config['vf_coef']
         self.continuous = config['continuous']
 
+        # GA hyperparameters
         self.crossover_rate = 1.0
         self.mutation_rate = 0.003
         self.n_generations = config['total_episodes']
         self.pop_size = config['n_agents'] * 2
+        self.evolution_period = 500
+        self.merging_period = 250
+        self.merging = None
 
     """ TRAINING LOGIC """
     def train(self):
@@ -74,6 +79,43 @@ class GIPPO():
         
         # train for n number of episodes
         for episode in range(self.total_episodes):
+            # evolve every 500 eps.
+            if episode % self.evolution_period == 0:
+                #################################### Genetic Algorithm ####################################
+
+                # population: policy.pop_actors -> nn.ModuleList
+                # fitness: currently using rewards as fitness for each agents
+                fitness = self.get_fitness(total_episodic_return)
+
+                # select: use fitness to compute a probs dist of networks in pop. 
+                # randomly choice individual by the probs dist to reform pop. 
+                # Meaning -> the actor with high rewards are more likely being selected as parents (e.g. the expert)
+                # Selection + crossover + mutation together = full mate selection process to make offsprings.
+                self.policy.pop_actors = self.select(self.policy.pop_actors, fitness)
+
+                # for each individual,
+                for i, actor in enumerate(self.policy.pop_actors):
+                    # give a probability that crossover happens by merging two actors' networks.
+                    child = self.crossover(actor, self.pop_gates[i], self.policy.pop_actors)
+                    #child = self.mutate(child)
+                    actor = child
+                ###########################################################################################
+                self.merging = True
+            
+            # after children born, use 250 eps for merging (train the gates).
+            # then, compress the big student and finetune until next evolution.
+            if episode % self.merging_period == 0:
+                for i, gate in enumerate(self.pop_gates):
+                    important_indices = gate.important_indices()
+                    self.policy.pop_actors[i] = nn.Sequential(
+                        compress_first_linear(self.policy.pop_actors[i][0], important_indices),
+                        compress_middle_linear(self.policy.pop_actors[i][1], important_indices),
+                        compress_final_linear(self.policy.pop_actors[i][1], important_indices),
+                        nn.Softmax(dim=-1)
+                    )
+                print(self.policy.pop_actors)
+                self.merging = False # means merging is done -> start to finetune.
+
             # collect an episode
             with torch.no_grad():
                 # collect observations and convert to batch of torch tensors
@@ -122,6 +164,7 @@ class GIPPO():
                 rb_returns = rb_advantages + rb_values
 
 
+            
 
             # Optimizing the policy and value network
             rb_index = np.arange(rb_obs.shape[0])
@@ -142,64 +185,29 @@ class GIPPO():
                     x = rb_obs[batch_index, :, :],
                     actions = old_actions
                 )
-
-                
-                logratio = newlogprob - rb_logprobs[batch_index, :]
-                ratio = logratio.exp()
-
-                with torch.no_grad():
-                    # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                    old_approx_kl = (-logratio).mean()
-                    approx_kl = ((ratio - 1) - logratio).mean()
-                    clip_fracs += [
-                        ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
-                    ]
-
-                # normalize advantaegs
-                advantages = rb_advantages[batch_index, :]
-                advantages = (advantages - advantages.mean()) / (
-                    advantages.std() + 1e-8
-                )
-
-                # Policy loss
-                pg_loss1 = -rb_advantages[batch_index, :] * ratio
-                pg_loss2 = -rb_advantages[batch_index, :] * torch.clamp(
-                    ratio, 1 - self.clip_coef, 1 + self.clip_coef
-                )
-                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
-
-                # Value loss
-                values = values.squeeze(-1)
-                v_loss_unclipped = (values - rb_returns[batch_index, :]) ** 2
-                v_clipped = rb_values[batch_index, :] + torch.clamp(
-                    values - rb_values[batch_index, :],
-                    -self.clip_coef,
-                    self.clip_coef,
-                )
-                v_loss_clipped = (v_clipped - rb_returns[batch_index, :]) ** 2
-                v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                v_loss = 0.5 * v_loss_max.mean()
-
-                entropy_loss = entropy.mean()
-                loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
-
-                '''
-                loss = clip_ppo_loss(
-                    newlogprob,
-                    entropy,
-                    value,
-                    b_values[batch_index],
-                    b_logprobs[batch_index],
-                    b_advantages[batch_index],
-                    b_returns[batch_index],
-                    self.clip_coef,
-                    self.ent_coef,
-                    self.vf_coef
-                )
-                '''
-                self.opt.zero_grad()
-                loss.backward()
-                self.opt.step()
+                    
+                if self.merging == True:
+                    loss = self.train_merging_stage(
+                        newlogprob,
+                        rb_logprobs[batch_index, :],
+                        rb_advantages[batch_index, :],
+                        values,
+                        rb_returns[batch_index, :],
+                        rb_values[batch_index, :],
+                        entropy
+                    )
+                    self.alpha += 0.05 * np.sqrt(self.alpha).item()
+                else:
+                    self.alpha = 0.01
+                    loss = self.train_finetune_stage(
+                        newlogprob,
+                        rb_logprobs[batch_index, :],
+                        rb_advantages[batch_index, :],
+                        values,
+                        rb_returns[batch_index, :],
+                        rb_values[batch_index, :],
+                        entropy
+                    )
 
             print(f"Training episode {episode}")
             print(f"Episodic Return: {total_episodic_return}")
@@ -214,27 +222,10 @@ class GIPPO():
                 plt.plot(x, y)
                 plt.pause(0.05)
         
+            
+                    
 
-            #################################### Genetic Algorithm ####################################
-
-            # population: policy.pop_actors -> nn.ModuleList
-            pop = copy.deepcopy(self.policy.pop_actors)
-
-            # fitness: currently using rewards as fitness for each agents
-            fitness = self.get_fitness(total_episodic_return)
-
-            # select: use fitness to compute a probs dist of networks in pop. 
-            # randomly choice individual by the probs dist to reform pop. 
-            # Meaning -> the actor with high rewards are more likely being selected as parents (e.g. the expert)
-            # Selection + crossover + mutation together = full mate selection process to make offsprings.
-            pop = self.select(pop, fitness)
-
-            # for each individual,
-            for actor in pop:
-                # give a probability that crossover happens by merging two actors' networks.
-                child = self.crossover(actor, pop)
-                child = self.mutate(child)
-            ###########################################################################################
+            
         plt.show()
 
     def save(self, path):
@@ -257,22 +248,140 @@ class GIPPO():
         return new_pop
 
 
-    def crossover(self, parent1: torch.nn.Sequential, pop: torch.nn.ModuleList) -> torch.nn.Sequential:
+    def crossover(self, parent1: torch.nn.Sequential, gate: nn.Module, pop: torch.nn.ModuleList) -> torch.nn.Sequential:
         if np.random.rand() < self.crossover_rate:
             i_ = np.random.randint(0, self.n_agents, size=1)
             parent2 = pop[i_.item()]
             child = nn.Sequential(
                 concat_first_linear(parent1[0], parent2[0]),
                 concat_middle_linear(parent1[1], parent2[1]),
-                L0GateLayer1d(n_features=64),
-                concat_last_linear(parent1[2], parent2[2]),
+                gate,
+                concat_last_linear(parent1[-2], parent2[-2]),
                 nn.Softmax(dim=-1)
             )
-            gate = child[2]
+
         return child
 
 
     def mutate(self, child):
         return child
+    
+    def train_merging_stage(
+                        self,
+                        newlogprob,
+                        rb_logprobs,
+                        rb_advantages,
+                        values,
+                        rb_returns,
+                        rb_values,
+                        entropy
+                ):
+                    logratio = newlogprob - rb_logprobs
+                    ratio = logratio.exp()
 
+                    with torch.no_grad():
+                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
+                        old_approx_kl = (-logratio).mean()
+                        approx_kl = ((ratio - 1) - logratio).mean()
+                        clip_fracs += [
+                            ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
+                        ]
 
+                    # normalize advantaegs
+                    advantages = rb_advantages
+                    advantages = (advantages - advantages.mean()) / (
+                        advantages.std() + 1e-8
+                    )
+
+                    # Policy loss
+                    pg_loss1 = -rb_advantages * ratio
+                    pg_loss2 = -rb_advantages * torch.clamp(
+                        ratio, 1 - self.clip_coef, 1 + self.clip_coef
+                    )
+                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
+                    # Value loss
+                    values = values.squeeze(-1)
+                    v_loss_unclipped = (values - rb_returns) ** 2
+                    v_clipped = rb_values + torch.clamp(
+                        values - rb_values,
+                        -self.clip_coef,
+                        self.clip_coef,
+                    )
+                    v_loss_clipped = (v_clipped - rb_returns) ** 2
+                    v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                    v_loss = 0.5 * v_loss_max.mean()
+
+                    entropy_loss = entropy.mean()
+                    loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
+
+                    l0_loss = []
+                    for gate in self.pop_gates:
+                        l0_loss.append(self.alpha * gate.l0_loss().item())
+                    l0_loss = torch.Tensor(l0_loss).mean().to(self.device)
+
+                    loss = loss + l0_loss
+
+                    self.opt.zero_grad()
+                    self.opt_gate.zero_grad()
+                    loss.backward()
+                    self.opt.step()
+                    self.opt_gate.step()
+
+                    return loss
+                
+
+    def train_finetune_stage(
+                        self,
+                        newlogprob,
+                        rb_logprobs,
+                        rb_advantages,
+                        values,
+                        rb_returns,
+                        rb_values,
+                        entropy
+                ):
+                    logratio = newlogprob - rb_logprobs
+                    ratio = logratio.exp()
+
+                    with torch.no_grad():
+                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
+                        old_approx_kl = (-logratio).mean()
+                        approx_kl = ((ratio - 1) - logratio).mean()
+                        clip_fracs += [
+                            ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
+                        ]
+
+                    # normalize advantaegs
+                    advantages = rb_advantages
+                    advantages = (advantages - advantages.mean()) / (
+                        advantages.std() + 1e-8
+                    )
+
+                    # Policy loss
+                    pg_loss1 = -rb_advantages * ratio
+                    pg_loss2 = -rb_advantages * torch.clamp(
+                        ratio, 1 - self.clip_coef, 1 + self.clip_coef
+                    )
+                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
+                    # Value loss
+                    values = values.squeeze(-1)
+                    v_loss_unclipped = (values - rb_returns) ** 2
+                    v_clipped = rb_values + torch.clamp(
+                        values - rb_values,
+                        -self.clip_coef,
+                        self.clip_coef,
+                    )
+                    v_loss_clipped = (v_clipped - rb_returns) ** 2
+                    v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                    v_loss = 0.5 * v_loss_max.mean()
+
+                    entropy_loss = entropy.mean()
+                    loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
+
+                    self.opt.zero_grad()
+                    loss.backward()
+                    self.opt.step()
+
+                    return loss
