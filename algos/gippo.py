@@ -32,7 +32,10 @@ class GIPPO():
         ).to(config['device'])
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-5)
 
-        self.pop_gates = None # reset at each time evolve.
+        self.pop_gates = nn.ModuleList([
+                    L0GateLayer1d(n_features=64)
+                    for _ in range(config['n_agents'])
+                ]) # reset at each time evolve.
         self.opt_gate = optim.SGD(self.pop_gates.parameters(), lr=0.001, momentum=0.9)
 
         self.max_cycles = config['max_cycles']
@@ -52,7 +55,7 @@ class GIPPO():
         self.alpha = 0.01
         self.crossover_rate = 1.0
         self.mutation_rate = 0.003
-        self.evolution_period = 1000
+        self.evolution_period = 2000
         self.merging_period = 250
         self.merging = None
 
