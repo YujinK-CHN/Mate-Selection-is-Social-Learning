@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from processing.batching import batchify, batchify_obs, unbatchify
 from loss.ppo_loss import clip_ppo_loss
 from policies.independent_policy import IndependentPolicy
+from policies.encoder_independent_policy import Encoder_independentPolicy
 
 class IPPO():
 
