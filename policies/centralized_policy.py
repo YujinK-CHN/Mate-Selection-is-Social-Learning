@@ -14,12 +14,20 @@ class CentralizedPolicy(nn.Module):
         self.device = device
         self.action_var = torch.full((self.output_dim,), 0.6*0.6)
 
-        self.actor = nn.Sequential(
-            nn.Linear(self.input_dim, 32),
-            nn.Linear(32, 32),
-            nn.Linear(32, self.output_dim),
-            nn.Tanh(),
-        )
+        if continuous == False:
+            self.actor = nn.Sequential(
+                nn.Linear(self.input_dim, 32),
+                nn.Linear(32, 32),
+                nn.Linear(32, self.output_dim),
+                nn.Softmax(dim=-1),
+            )
+        else:
+            self.actor = nn.Sequential(
+                nn.Linear(self.input_dim, 32),
+                nn.Linear(32, 32),
+                nn.Linear(32, self.output_dim),
+                nn.Tanh(),
+            )
         
         self.critic = nn.Sequential(
                 nn.Linear(self.input_dim, 32),
@@ -44,7 +52,10 @@ class CentralizedPolicy(nn.Module):
         if self.continuous == False:
             action_dist = Categorical(probs=action_probs)
         else:
-            cov_matrix = torch.diag(self.action_var).to(self.device)
+            if self.n_agents == 1:
+                cov_matrix = torch.diag(self.action_var).to(self.device)
+            else:
+                cov_matrix = torch.diag(self.action_var).unsqueeze(dim=0).to(self.device)
             action_dist = MultivariateNormal(action_probs, cov_matrix)
         
         actions = action_dist.sample()
@@ -60,7 +71,10 @@ class CentralizedPolicy(nn.Module):
         if self.continuous == False:
             action_dist = Categorical(probs=action_probs)
         else:
-            cov_matrix = torch.diag(self.action_var).unsqueeze(dim=0).to(self.device)
+            if self.n_agents == 1:
+                cov_matrix = torch.diag(self.action_var).to(self.device)
+            else:
+                cov_matrix = torch.diag(self.action_var).unsqueeze(dim=0).to(self.device)
             action_dist = MultivariateNormal(action_probs, cov_matrix)
 
         values = self.critic(x)
