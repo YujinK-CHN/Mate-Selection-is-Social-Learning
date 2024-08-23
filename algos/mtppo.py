@@ -6,10 +6,9 @@ import matplotlib.pyplot as plt
 from processing.batching import batchify, batchify_obs, unbatchify
 from loss.ppo_loss import clip_ppo_loss
 from policies.centralized_policy import CentralizedPolicy
-from policies.independent_policy import IndependentPolicy
-from policies.encoder_independent_policy import Encoder_independentPolicy
+from policies.multitask_policy import MTPolicy
 
-class PPO():
+class MTPPO():
 
     def __init__(
             self,
@@ -18,18 +17,19 @@ class PPO():
     ):
         self.env = env
         self.device = config['device']
-        self.name = 'ppo'
-        self.policy = CentralizedPolicy(
+        self.name = 'mtppo'
+        self.policy = MTPolicy(
             pop_size = config['pop_size'], 
             observation_space = config['obs_shape'],
             action_space = config['num_actions'],
+            num_tasks = len(env.tasks),
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-5)
 
         self.max_cycles = config['max_cycles']
-        self.pop_size = config['pop_size']
+        self.n_agents = config['n_agents']
         self.num_actions = config['num_actions']
         self.obs_shape = config['obs_shape']
         self.curr_latent = None
@@ -42,27 +42,34 @@ class PPO():
         self.continuous = config['continuous']
     
     """ TRAINING LOGIC """
+    def select_action(policy, state, task_id):
+        state = torch.tensor(state, dtype=torch.float32)
+        logits = policy(state, task_id)
+        action_prob = nn.Softmax(dim=-1)(logits)
+        action = torch.multinomial(action_prob, 1)
+        return action.item()
+
     def train(self):
         
         y = []
         end_step = 0
         total_episodic_return = 0
-        rb_obs = torch.zeros((self.max_cycles, self.pop_size, self.obs_shape)).to(self.device)
+        rb_obs = torch.zeros((self.max_cycles, self.n_agents, self.obs_shape)).to(self.device)
         if self.continuous == True:
-            rb_actions = torch.zeros((self.max_cycles, self.pop_size, self.num_actions)).to(self.device)
+            rb_actions = torch.zeros((self.max_cycles, self.n_agents, self.num_actions)).to(self.device)
         else:
-            rb_actions = torch.zeros((self.max_cycles, self.pop_size)).to(self.device)
-        rb_logprobs = torch.zeros((self.max_cycles, self.pop_size)).to(self.device)
-        rb_rewards = torch.zeros((self.max_cycles, self.pop_size)).to(self.device)
-        rb_terms = torch.zeros((self.max_cycles, self.pop_size)).to(self.device)
-        rb_values = torch.zeros((self.max_cycles, self.pop_size)).to(self.device)
+            rb_actions = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
+        rb_logprobs = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
+        rb_rewards = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
+        rb_terms = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
+        rb_values = torch.zeros((self.max_cycles, self.n_agents)).to(self.device)
         
         # train for n number of episodes
         for episode in range(self.total_episodes):
             # collect an episode
             with torch.no_grad():
                 # collect observations and convert to batch of torch tensors
-                next_obs, info = self.env.reset(seed=None)
+                next_obs, info = self.env.reset(seed=0)
                 
                 # reset the episodic return
                 total_episodic_return = 0
@@ -195,7 +202,7 @@ class PPO():
 
             x = np.linspace(0, episode, episode+1)
             y.append(np.mean(total_episodic_return))
-            if episode % 1000 == 0:
+            if episode % 10 == 0:
                 plt.plot(x, y)
                 plt.pause(0.05)
         plt.show()

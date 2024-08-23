@@ -4,50 +4,35 @@ import torch.nn as nn
 from torch.distributions.categorical import Categorical
 from torch.distributions.multivariate_normal import MultivariateNormal
 
-class CentralizedPolicy(nn.Module):
-    def __init__(self, pop_size, observation_space, action_space, device, continuous=True):
-        super().__init__()
-        self.input_dim = observation_space
-        self.output_dim = action_space
+class MultiTaskPolicy(nn.Module):
+    def __init__(self, pop_size, observation_space, action_space, num_tasks, continuous, device):
+        super(MultiTaskPolicy, self).__init__()
         self.pop_size = pop_size
         self.continuous = continuous
         self.device = device
         self.action_var = torch.full((self.output_dim,), 0.6*0.6)
 
-        if continuous == False:
-            self.actor = nn.Sequential(
-                nn.Linear(self.input_dim, 32),
-                nn.Linear(32, 32),
-                nn.Linear(32, self.output_dim),
-                nn.Softmax(dim=-1),
-            )
-        else:
-            self.actor = nn.Sequential(
-                nn.Linear(self.input_dim, 32),
-                nn.Linear(32, 32),
-                nn.Linear(32, self.output_dim),
-                nn.Tanh(),
-            )
-        
+        self.shared_layers = nn.Sequential(
+            nn.Linear(observation_space.shape[0], 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+        )
+        self.task_heads = nn.ModuleList([
+            nn.Linear(128, action_space.n) for _ in range(num_tasks)
+        ])
+
         self.critic = nn.Sequential(
-                nn.Linear(self.input_dim, 32),
-                nn.Linear(32, 32),
-                nn.Linear(32, 1)
-            )
-
-    def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
-        torch.nn.init.orthogonal_(layer.weight, std)
-        torch.nn.init.constant_(layer.bias, bias_const)
-        return layer
-
-    def get_value(self, x):
-
-        values = self.critic(x)
-        return values
-
-    def act(self, x):
+            nn.Linear(self.input_dim, 32),
+            nn.Linear(32, 32),
+            nn.Linear(32, 1)
+        )
         
-        action_probs = self.actor(x)
+
+    def act(self, x, task_id):
+        
+        x = self.shared_layers(x)
+        action_probs = self.task_heads[task_id](x)
 
         if self.continuous == False:
             action_dist = Categorical(probs=action_probs)
@@ -64,9 +49,10 @@ class CentralizedPolicy(nn.Module):
 
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
-    def evaluate(self, x, actions):
+    def evaluate(self, x, task_id, actions):
 
-        action_probs = self.actor(x)
+        x = self.shared_layers(x)
+        action_probs = self.task_heads[task_id](x)
 
         if self.continuous == False:
             action_dist = Categorical(probs=action_probs)
