@@ -16,7 +16,17 @@ def create_env(config):
         env = gym.make("Walker2d-v5")
         obs_shape = env.observation_space.shape
         num_actions = env.action_space.shape
-        return env, obs_shape, num_actions
+        return env, obs_shape, num_actions, True
+
+def create_multi_env(config):
+    walker = gym.make("Walker2d-v5")
+    walker = gym.make("Walker2d-v5")
+    walker = gym.make("Walker2d-v5")
+    
+    obs_shape = env[0].observation_space.shape
+    num_actions = env[0].action_space.shape
+    env = [walker]
+    return env, obs_shape, num_actions, False
 
 
 if __name__ == "__main__":
@@ -26,7 +36,7 @@ if __name__ == "__main__":
         'env_name': "walker",
         'obs_shape': None,
         'num_actions': None,
-        'continuous': True,
+        'continuous': None,
         'n_agents': 1,
         'ent_coef': 0.1,
         'vf_coef': 0.1,
@@ -39,9 +49,10 @@ if __name__ == "__main__":
     }
 
     """ ENV SETUP """
-    env, obs_shape, num_actions = create_env(config)
+    env, obs_shape, num_actions, continuous = create_env(config)
     config['obs_shape'] = obs_shape[0]
     config['num_actions'] = num_actions[0]
+    config['continuous'] = continuous
 
     """ ALGO SETUP """
     ppo = PPO(env, config)
