@@ -15,9 +15,11 @@ class MultiTaskPolicy(nn.Module):
 
         self.shared_layers = nn.Sequential(
             nn.Linear(env.observation_space.shape[0], 128),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(128, 128),
-            nn.ReLU(),
+            nn.Tanh(),
+            nn.Linear(128, 128),
+            nn.Tanh(),
         )
         self.task_heads = nn.ModuleList([
             nn.Sequential(
@@ -28,9 +30,9 @@ class MultiTaskPolicy(nn.Module):
         ])
 
         self.critic = nn.Sequential(
-            nn.Linear(env.observation_space.shape[0], 32),
-            nn.Linear(32, 32),
-            nn.Linear(32, 1)
+            nn.Linear(env.observation_space.shape[0], 128),
+            nn.Linear(128, 128),
+            nn.Linear(128, 1)
         )
         
 
