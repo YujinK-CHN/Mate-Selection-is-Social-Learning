@@ -195,7 +195,7 @@ class PPO():
 
             x = np.linspace(0, episode, episode+1)
             y.append(np.mean(total_episodic_return))
-            if episode % 10000 == 0:
+            if episode % 10 == 0:
                 plt.plot(x, y)
                 plt.pause(0.05)
         plt.show()

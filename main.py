@@ -9,14 +9,20 @@ from algos.ippo import IPPO
 from algos.mappo import MAPPO
 from algos.gippo import GIPPO
 
+# ,render_mode="human"
 def create_env(config):
     if config['env_name'] == 'walker':
         env = gym.make("Walker2d-v5")
         obs_shape = env.observation_space.shape
         num_actions = env.action_space.shape
         return env, obs_shape, num_actions, True
-    if config['env_name'] == 'trondead': # have to be solved by EA
+    if config['env_name'] == 'trondead': # may be solved by EA
         env = gym.make("ALE/Trondead-ram-v5")
+        obs_shape = env.observation_space.shape
+        num_actions = env.action_space
+        return env, obs_shape, 18, False
+    if config['env_name'] == 'Boxing': # worked
+        env = gym.make("ALE/Boxing-ram-v5")
         obs_shape = env.observation_space.shape
         num_actions = env.action_space
         return env, obs_shape, 18, False
@@ -36,7 +42,7 @@ if __name__ == "__main__":
     """ALGO PARAMS"""
     config = {
         'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        'env_name': "trondead",
+        'env_name': "Boxing",
         'obs_shape': None,
         'num_actions': None,
         'continuous': None,
