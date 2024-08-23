@@ -12,7 +12,7 @@ from algos.mtppo import MTPPO
 
 # ,render_mode="human"
 def create_multitask_env():
-    env1 = gym.make("Walker2d-v5")
+    env1 = gym.make("Walker2d-v4")
     env2 = gym.make("HalfCheetah-v4")
     return [env1, env2]
 
@@ -25,7 +25,7 @@ class MultiTaskEnv(gym.Env):
 
     def reset(self):
         self.current_task = self.select_task()
-        return self.current_task.reset()
+        return self.current_task.reset(seed=0)
 
     def select_task(self):
         # You can implement random task selection, cyclic switching, or other strategies
