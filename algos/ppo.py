@@ -62,7 +62,7 @@ class PPO():
             # collect an episode
             with torch.no_grad():
                 # collect observations and convert to batch of torch tensors
-                next_obs, info = self.env.reset(seed=None)
+                next_obs, info = self.env.reset(seed=0)
                 
                 # reset the episodic return
                 total_episodic_return = 0

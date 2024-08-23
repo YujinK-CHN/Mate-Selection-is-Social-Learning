@@ -11,8 +11,13 @@ from algos.gippo import GIPPO
 
 # ,render_mode="human"
 def create_env(config):
-    if config['env_name'] == 'walker':
+    if config['env_name'] == 'Walker2d':
         env = gym.make("Walker2d-v5")
+        obs_shape = env.observation_space.shape
+        num_actions = env.action_space.shape
+        return env, obs_shape, num_actions, True
+    if config['env_name'] == 'HalfCheetah':
+        env = gym.make("HalfCheetah-v4")
         obs_shape = env.observation_space.shape
         num_actions = env.action_space.shape
         return env, obs_shape, num_actions, True
@@ -21,8 +26,13 @@ def create_env(config):
         obs_shape = env.observation_space.shape
         num_actions = env.action_space
         return env, obs_shape, 18, False
-    if config['env_name'] == 'Boxing': # worked
+    if config['env_name'] == 'Boxing':
         env = gym.make("ALE/Boxing-ram-v5")
+        obs_shape = env.observation_space.shape
+        num_actions = env.action_space
+        return env, obs_shape, 18, False
+    if config['env_name'] == 'BattleZone':
+        env = gym.make("ALE/BattleZone-ram-v5")
         obs_shape = env.observation_space.shape
         num_actions = env.action_space
         return env, obs_shape, 18, False
@@ -51,8 +61,8 @@ if __name__ == "__main__":
         'vf_coef': 0.1,
         'clip_coef': 0.1,
         'gamma': 0.99,
-        'max_cycles': 512,
-        'batch_size': 16,
+        'max_cycles': 32,
+        'batch_size': 4,
         'total_episodes': 30000,
         'lr': 0.0003
     }
