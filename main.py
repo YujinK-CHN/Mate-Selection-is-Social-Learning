@@ -1,4 +1,3 @@
-from pettingzoo.sisl import waterworld_v4, multiwalker_v9
 from pettingzoo.mpe import simple_spread_v3
 import gymnasium as gym
 
@@ -52,7 +51,7 @@ if __name__ == "__main__":
     """ALGO PARAMS"""
     config = {
         'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        'env_name': "Boxing",
+        'env_name': "HalfCheetah",
         'obs_shape': None,
         'num_actions': None,
         'continuous': None,
