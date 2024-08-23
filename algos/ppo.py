@@ -5,9 +5,11 @@ import matplotlib.pyplot as plt
 
 from processing.batching import batchify, batchify_obs, unbatchify
 from loss.ppo_loss import clip_ppo_loss
+from policies.centralized_policy import CentralizedPolicy
 from policies.independent_policy import IndependentPolicy
+from policies.encoder_independent_policy import Encoder_independentPolicy
 
-class IPPO():
+class PPO():
 
     def __init__(
             self,
@@ -16,8 +18,8 @@ class IPPO():
     ):
         self.env = env
         self.device = config['device']
-        self.name = 'ippo'
-        self.policy = IndependentPolicy(
+        self.name = 'ppo'
+        self.policy = CentralizedPolicy(
             n_agents = config['n_agents'], 
             input_dim = config['obs_shape'],
             output_dim = config['num_actions'],
@@ -61,26 +63,26 @@ class IPPO():
             with torch.no_grad():
                 # collect observations and convert to batch of torch tensors
                 next_obs, info = self.env.reset(seed=None)
+                
                 # reset the episodic return
                 total_episodic_return = 0
 
                 # each episode has num_steps
                 for step in range(0, self.max_cycles):
                     # rollover the observation 
-                    obs = batchify_obs(next_obs, self.device)
+                    #obs = batchify_obs(next_obs, self.device)
+                    obs = torch.FloatTensor(next_obs).to(self.device)
 
                     # get actions from skills
-                    actions, logprobs, entropy, values = self.policy.act(obs) # obs: [n, obs_shape]
+                    actions, logprobs, entropy, values = self.policy.act(obs)
 
                     # execute the environment and log data
-                    next_obs, rewards, terms, truncs, infos = self.env.step(
-                        unbatchify(actions, self.env)
-                    )
+                    next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
 
                     # add to episode storage
                     rb_obs[step] = obs
-                    rb_rewards[step] = batchify(rewards, self.device)
-                    rb_terms[step] = batchify(terms, self.device)
+                    rb_rewards[step] = rewards
+                    rb_terms[step] = terms
                     rb_actions[step] = actions
                     rb_logprobs[step] = logprobs
                     rb_values[step] = values.flatten()
@@ -88,7 +90,7 @@ class IPPO():
                     total_episodic_return += rb_rewards[step].cpu().numpy()
 
                     # if we reach termination or truncation, end
-                    if any([terms[a] for a in terms]) or any([truncs[a] for a in truncs]):
+                    if terms or truncs:
                         end_step = step
                         break
 

@@ -16,8 +16,9 @@ class CentralizedPolicy(nn.Module):
 
         self.actor = nn.Sequential(
             nn.Linear(self.input_dim, 32),
+            nn.Linear(32, 32),
             nn.Linear(32, self.output_dim),
-            nn.Softmax(),
+            nn.Tanh(),
         )
         
         self.critic = nn.Sequential(
@@ -43,17 +44,12 @@ class CentralizedPolicy(nn.Module):
         if self.continuous == False:
             action_dist = Categorical(probs=action_probs)
         else:
-            means = action_probs
-            if torch.isnan(torch.sum(means)):
-                means = torch.zeros(means.shape).to(self.device)
-            cov_matrix = torch.diag(self.action_var).unsqueeze(dim=0).to(self.device)
-            action_dist = MultivariateNormal(means, cov_matrix)
+            cov_matrix = torch.diag(self.action_var).to(self.device)
+            action_dist = MultivariateNormal(action_probs, cov_matrix)
         
         actions = action_dist.sample()
 
         values = self.critic(x)
-
-        entropy = torch.fmax(action_dist.entropy(), torch.full(action_dist.entropy().shape, 1e-6).to(self.device))
 
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
@@ -64,19 +60,10 @@ class CentralizedPolicy(nn.Module):
         if self.continuous == False:
             action_dist = Categorical(probs=action_probs)
         else:
-            means = action_probs
-            if torch.isnan(torch.sum(means)):
-                means = torch.zeros(means.shape).to(self.device)
-            action_var = self.action_var.expand_as(means)
-            cov_matrix = torch.diag_embed(action_var).to(self.device)
-            action_dist = MultivariateNormal(means, cov_matrix)
-
-            if self.output_dim == 1:
-                actions = actions.reshape(-1, self.output_dim)
+            cov_matrix = torch.diag(self.action_var).unsqueeze(dim=0).to(self.device)
+            action_dist = MultivariateNormal(action_probs, cov_matrix)
 
         values = self.critic(x)
-
-        entropy = torch.fmax(action_dist.entropy(), torch.full(action_dist.entropy().shape, 1e-6).to(self.device))
 
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
