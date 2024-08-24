@@ -38,7 +38,7 @@ class MultiTaskPolicy(nn.Module):
         
 
     def act(self, x, task_id):
-        
+        print(x.shape)
         latent = self.shared_layers(x)
         action_probs = self.task_heads[task_id](latent)
 
@@ -52,13 +52,15 @@ class MultiTaskPolicy(nn.Module):
             action_dist = MultivariateNormal(action_probs, cov_matrix)
         
         actions = action_dist.sample()
+        print(actions.shape)
 
         values = self.critic(x)
 
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
     def evaluate(self, x, task_id, actions):
-
+        print(x.shape)
+        print(actions.shape)
         latent = self.shared_layers(x)
         action_probs = self.task_heads[task_id](latent)
 
@@ -72,7 +74,7 @@ class MultiTaskPolicy(nn.Module):
             action_dist = MultivariateNormal(action_probs, cov_matrix)
 
         values = self.critic(x)
-        print(self.task_heads[0][0].weight.grad)
+        print(self.shared_layers[0].weight.grad)
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
     def run(self, obs):
