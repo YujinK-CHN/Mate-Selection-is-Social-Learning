@@ -23,7 +23,7 @@ def create_metaworld():
     return training_envs
 
 
-class MultiTaskEnv(gym.Env):
+class MultiTaskEnv():
     def __init__(self, tasks):
         self.tasks = tasks # [task1, task2]
         self.current_task = None
@@ -64,7 +64,6 @@ if __name__ == "__main__":
     }
 
     """ ENV SETUP """
-    tasks = create_multitask_env()
     multi_task_env = MultiTaskEnv(create_metaworld())
 
     """ ALGO SETUP """

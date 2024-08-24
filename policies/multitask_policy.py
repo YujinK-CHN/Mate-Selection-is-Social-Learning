@@ -15,16 +15,16 @@ class MultiTaskPolicy(nn.Module):
 
         self.shared_layers = nn.Sequential(
             nn.Linear(env.observation_space.shape[0], 128),
-            nn.Tanh(),
+            nn.ReLU(),
             nn.Linear(128, 128),
-            nn.Tanh(),
+            nn.ReLU(),
             nn.Linear(128, 128),
-            nn.Tanh(),
+            nn.ReLU(),
         )
         self.task_heads = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(128, env.tasks[i].action_space.shape[0]),
-                nn.Tanh()
+                nn.Softmax(dim=-1)
             ) 
             for i in range(num_tasks)
         ])
