@@ -1,6 +1,3 @@
-from pettingzoo.mpe import simple_spread_v3
-import gymnasium as gym
-
 import torch
 import numpy as np
 from pipline.train import training
@@ -10,11 +7,21 @@ from algos.mappo import MAPPO
 from algos.gippo import GIPPO
 from algos.mtppo import MTPPO
 
-# ,render_mode="human"
-def create_multitask_env():
-    env1 = gym.make("Walker2d-v4")
-    env2 = gym.make("HalfCheetah-v4")
-    return [env1, env2]
+import metaworld
+import random
+
+ml10 = metaworld.MT10() # Construct the benchmark, sampling tasks
+
+def create_metaworld():
+    training_envs = []
+    for name, env_cls in ml10.train_classes.items():
+        env = env_cls()
+        task = random.choice([task for task in ml10.train_tasks
+                                if task.env_name == name])
+        env.set_task(task)
+        training_envs.append(env)
+    return training_envs
+
 
 class MultiTaskEnv(gym.Env):
     def __init__(self, tasks):
@@ -58,7 +65,7 @@ if __name__ == "__main__":
 
     """ ENV SETUP """
     tasks = create_multitask_env()
-    multi_task_env = MultiTaskEnv(tasks)
+    multi_task_env = MultiTaskEnv(create_metaworld())
 
     """ ALGO SETUP """
     mtppo = MTPPO(multi_task_env, config)
