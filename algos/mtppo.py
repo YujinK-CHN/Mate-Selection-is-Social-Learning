@@ -40,21 +40,15 @@ class MTPPO():
         self.continuous = config['continuous']
     
     """ TRAINING LOGIC """
-    def select_action(policy, state, task_id):
-        state = torch.tensor(state, dtype=torch.float32)
-        logits = policy(state, task_id)
-        action_prob = nn.Softmax(dim=-1)(logits)
-        action = torch.multinomial(action_prob, 1)
-        return action.item()
 
     def train(self):
 
         y = []
         end_step = 0
         total_episodic_return = 0
-        rb_obs = torch.zeros((self.max_cycles, self.pop_size, self.obs_shape)).to(self.device)
+        rb_obs = torch.zeros((self.max_cycles, self.obs_shape)).to(self.device)
         if self.continuous == True:
-            rb_actions = torch.zeros((self.max_cycles, self.pop_size, 6)).to(self.device)
+            rb_actions = torch.zeros((self.max_cycles, 6)).to(self.device)
         else:
             rb_actions = torch.zeros((self.max_cycles, self.pop_size)).to(self.device)
         rb_logprobs = torch.zeros((self.max_cycles, self.pop_size)).to(self.device)
@@ -126,17 +120,16 @@ class MTPPO():
                 batch_index = rb_index[start:end]
 
                 if self.continuous == True:
-                    old_actions = rb_actions.long()[batch_index, :, :]
+                    old_actions = rb_actions.long()[batch_index, :]
                 else:
                     old_actions = rb_actions.long()[batch_index, :]
                 _, newlogprob, entropy, values = self.policy.evaluate(
-                    x = rb_obs[batch_index, :, :],
+                    x = rb_obs[batch_index, :],
                     task_id = task_id,
                     actions = old_actions
                 )
 
-                
-                logratio = newlogprob - rb_logprobs[batch_index, :]
+                logratio = newlogprob.unsqueeze(-1) - rb_logprobs[batch_index, :]
                 ratio = logratio.exp()
 
                 with torch.no_grad():
@@ -161,7 +154,6 @@ class MTPPO():
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
-                values = values.squeeze(-1)
                 v_loss_unclipped = (values - rb_returns[batch_index, :]) ** 2
                 v_clipped = rb_values[batch_index, :] + torch.clamp(
                     values - rb_values[batch_index, :],
