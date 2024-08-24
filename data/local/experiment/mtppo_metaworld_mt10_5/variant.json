@@ -1,7 +1,0 @@
-{
-  "seed": 1,
-  "epochs": 500,
-  "batch_size": 1024,
-  "n_workers": 8,
-  "n_tasks": 10
-}
