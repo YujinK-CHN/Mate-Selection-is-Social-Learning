@@ -1,0 +1,6 @@
+{
+  "seed": 1,
+  "_gpu": null,
+  "n_tasks": 10,
+  "timesteps": 20000000
+}
