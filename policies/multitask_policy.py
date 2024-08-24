@@ -71,7 +71,7 @@ class MultiTaskPolicy(nn.Module):
             action_dist = MultivariateNormal(action_probs, cov_matrix)
 
         values = self.critic(x)
-
+        # print(self.shared_layers[2].weight.grad)
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
     def run(self, obs):
