@@ -192,7 +192,11 @@ class MTPPO():
                 self.opt.zero_grad()
                 loss.backward()
                 self.opt.step()
+                '''
+                for param in self.policy.parameters():
+                    print(param.grad)
 
+                '''
             print(f"Training episode {episode}")
             print(f"Episodic Return: {total_episodic_return}")
             print(f"task id: {task_id}")

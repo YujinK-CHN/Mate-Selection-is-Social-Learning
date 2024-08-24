@@ -24,7 +24,8 @@ class MultiTaskPolicy(nn.Module):
         self.task_heads = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(128, env.tasks[i].action_space.shape[0]),
-                nn.Softmax(dim=-1)
+                #nn.Softmax(dim=-1)
+                nn.Tanh()
             ) 
             for i in range(num_tasks)
         ])
@@ -71,7 +72,7 @@ class MultiTaskPolicy(nn.Module):
             action_dist = MultivariateNormal(action_probs, cov_matrix)
 
         values = self.critic(x)
-
+        print(self.task_heads[0][0].weight.grad)
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
     def run(self, obs):

@@ -28,7 +28,6 @@ class MultiTaskEnv():
         self.tasks = tasks # [task1, task2]
         self.current_task = None
         self.observation_space = tasks[0].observation_space
-        self.action_space = tasks[0].action_space
 
     def reset(self):
         self.current_task = self.select_task()
@@ -60,7 +59,7 @@ if __name__ == "__main__":
         'max_cycles': 64,
         'batch_size': 8,
         'total_episodes': 100000,
-        'lr': 0.00001
+        'lr': 0.0001
     }
 
     """ ENV SETUP """
