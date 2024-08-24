@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 from torch.distributions.multivariate_normal import MultivariateNormal
-from torchvision.ops import MLP
 
 class Encoder_independentPolicy(nn.Module):
     def __init__(self, n_agents, input_dim, output_dim, device, continuous=True):
