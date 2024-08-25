@@ -18,6 +18,8 @@ class MultiTaskPolicy(nn.Module):
             nn.Tanh(),
             nn.Linear(64, 64),
             nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
         )
         self.task_heads = nn.ModuleList([
             nn.Sequential(

@@ -91,25 +91,22 @@ class MTPPO():
 
                     # if we reach termination or truncation, end
                     if terms or truncs:
-                        print(terms)
-                        print(truncs)
                         end_step = step
                         break
+                    else:
+                        end_step = step
             
-            print(end_step)
+            
             # skills advantage
             with torch.no_grad():
                 rb_advantages = torch.zeros_like(rb_rewards).to(self.device)
                 for t in reversed(range(end_step)):
-                    print(t)
                     delta = (
                         rb_rewards[t]
                         + self.gamma * rb_values[t + 1] * rb_terms[t + 1]
                         - rb_values[t]
                     )
-                    print(delta)
                     rb_advantages[t] = delta + self.gamma * self.gamma * rb_advantages[t + 1]
-                    print(rb_advantages[t])
                 rb_returns = rb_advantages + rb_values
 
 
