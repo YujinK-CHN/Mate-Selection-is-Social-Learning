@@ -48,7 +48,7 @@ class MTPPO():
         total_episodic_return = 0
         rb_obs = torch.zeros((self.max_cycles, self.obs_shape)).to(self.device)
         if self.continuous == True:
-            rb_actions = torch.zeros((self.max_cycles, 6)).to(self.device)
+            rb_actions = torch.zeros((self.max_cycles, self.env.action_space.shape[0])).to(self.device)
         else:
             rb_actions = torch.zeros((self.max_cycles, self.pop_size)).to(self.device)
         rb_logprobs = torch.zeros((self.max_cycles, self.pop_size)).to(self.device)
