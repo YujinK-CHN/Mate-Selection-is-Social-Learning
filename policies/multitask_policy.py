@@ -11,16 +11,17 @@ class MultiTaskPolicy(nn.Module):
         self.pop_size = pop_size
         self.continuous = continuous
         self.device = device
-        self.action_var = [torch.full((env.tasks[i].action_space.shape[0],), 0.6*0.6)  for i in range(num_tasks)]
+        self.log_std = nn.Parameter(torch.zeros(env.tasks[0].action_space.shape[0]))
 
         self.shared_layers = nn.Sequential(
             nn.Linear(env.observation_space.shape[0], 128),
-            nn.Tanh(),
+            nn.LeakyReLU(),
             nn.Linear(128, 128),
-            nn.Tanh(),
-            nn.Linear(128, 128),
+            nn.LeakyReLU(),
+            nn.Linear(128, env.tasks[0].action_space.shape[0]),
             nn.Tanh(),
         )
+        '''
         self.task_heads = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(128, env.tasks[i].action_space.shape[0]),
@@ -28,7 +29,7 @@ class MultiTaskPolicy(nn.Module):
             ) 
             for i in range(num_tasks)
         ])
-
+        '''
         self.critic = nn.Sequential(
             nn.Linear(env.observation_space.shape[0], 128),
             nn.Linear(128, 128),
@@ -37,17 +38,17 @@ class MultiTaskPolicy(nn.Module):
         
 
     def act(self, x, task_id):
-        latent = self.shared_layers(x)
-        action_probs = self.task_heads[task_id](latent)
+        means = self.shared_layers(x)
+        # action_probs = self.task_heads[task_id](latent)
 
         if self.continuous == False:
-            action_dist = Categorical(probs=action_probs)
+            action_dist = Categorical(probs=means)
         else:
             if self.pop_size == 1:
-                cov_matrix = torch.diag(self.action_var[task_id]).to(self.device)
+                cov_matrix = torch.diag(torch.exp(self.log_std)).to(self.device)
             else:
-                cov_matrix = torch.diag(self.action_var[task_id]).unsqueeze(dim=0).to(self.device)
-            action_dist = MultivariateNormal(action_probs, cov_matrix)
+                cov_matrix = torch.diag(torch.exp(self.log_std)).unsqueeze(dim=0).to(self.device)
+            action_dist = MultivariateNormal(means, cov_matrix)
         
         actions = action_dist.sample()
         values = self.critic(x)
@@ -55,17 +56,17 @@ class MultiTaskPolicy(nn.Module):
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
     def evaluate(self, x, task_id, actions):
-        latent = self.shared_layers(x)
-        action_probs = self.task_heads[task_id](latent)
+        means = self.shared_layers(x)
+        #action_probs = self.task_heads[task_id](latent)
 
         if self.continuous == False:
-            action_dist = Categorical(probs=action_probs)
+            action_dist = Categorical(probs=means)
         else:
             if self.pop_size == 1:
-                cov_matrix = torch.diag(self.action_var[task_id]).to(self.device)
+                cov_matrix = torch.diag(torch.exp(self.log_std)).to(self.device)
             else:
-                cov_matrix = torch.diag(self.action_var[task_id]).unsqueeze(dim=0).to(self.device)
-            action_dist = MultivariateNormal(action_probs, cov_matrix)
+                cov_matrix = torch.diag(torch.exp(self.log_std)).unsqueeze(dim=0).to(self.device)
+            action_dist = MultivariateNormal(means, cov_matrix)
 
         values = self.critic(x)
         # print(self.shared_layers[2].weight.grad)

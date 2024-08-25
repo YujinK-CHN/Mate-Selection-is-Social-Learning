@@ -79,7 +79,6 @@ class MTPPO():
 
                     # execute the environment and log data
                     next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
-                    print(terms)
 
                     # add to episode storage
                     rb_obs[step] = obs
