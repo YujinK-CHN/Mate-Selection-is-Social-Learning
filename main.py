@@ -28,6 +28,7 @@ class MultiTaskEnv():
         self.tasks = tasks # [task1, task2]
         self.current_task = None
         self.observation_space = tasks[0].observation_space
+        self.action_space = tasks[0].action_space
 
     def reset(self):
         self.current_task = self.select_task()
