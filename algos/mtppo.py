@@ -44,7 +44,7 @@ class MTPPO():
     def train(self):
 
         y = []
-        end_step = 0
+        
         total_episodic_return = 0
         rb_obs = torch.zeros((self.max_cycles, self.obs_shape)).to(self.device)
         if self.continuous == True:
@@ -65,6 +65,7 @@ class MTPPO():
                 task_id = self.env.tasks.index(self.env.current_task)
                 
                 # reset the episodic return
+                end_step = 0
                 total_episodic_return = 0
 
                 # each episode has num_steps
@@ -78,6 +79,7 @@ class MTPPO():
 
                     # execute the environment and log data
                     next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
+                    print(terms)
 
                     # add to episode storage
                     rb_obs[step] = obs
@@ -93,7 +95,9 @@ class MTPPO():
                     if terms or truncs:
                         end_step = step
                         break
-
+                    else:
+                        end_step = step
+            
             # skills advantage
             with torch.no_grad():
                 rb_advantages = torch.zeros_like(rb_rewards).to(self.device)
@@ -105,7 +109,6 @@ class MTPPO():
                     )
                     rb_advantages[t] = delta + self.gamma * self.gamma * rb_advantages[t + 1]
                 rb_returns = rb_advantages + rb_values
-
 
 
             # Optimizing the policy and value network
