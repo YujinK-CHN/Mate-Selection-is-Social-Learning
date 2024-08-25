@@ -59,7 +59,7 @@ if __name__ == "__main__":
         'max_cycles': 64,
         'batch_size': 8,
         'total_episodes': 100000,
-        'lr': 0.0001
+        'lr': 0.001
     }
 
     """ ENV SETUP """

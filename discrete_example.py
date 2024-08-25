@@ -161,7 +161,8 @@ if __name__ == "__main__":
                 if any([terms[a] for a in terms]) or any([truncs[a] for a in truncs]):
                     end_step = step
                     break
-
+        
+        print(end_step)
         # bootstrap value if not done
         with torch.no_grad():
             rb_advantages = torch.zeros_like(rb_rewards).to(device)

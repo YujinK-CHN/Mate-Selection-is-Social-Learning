@@ -14,16 +14,14 @@ class MultiTaskPolicy(nn.Module):
         self.action_var = [torch.full((env.tasks[i].action_space.shape[0],), 0.6*0.6)  for i in range(num_tasks)]
 
         self.shared_layers = nn.Sequential(
-            nn.Linear(env.observation_space.shape[0], 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
+            nn.Linear(env.observation_space.shape[0], 64),
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
         )
         self.task_heads = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(128, env.tasks[i].action_space.shape[0]),
+                nn.Linear(64, env.tasks[i].action_space.shape[0]),
                 #nn.Softmax(dim=-1)
                 nn.Tanh()
             ) 
@@ -31,9 +29,9 @@ class MultiTaskPolicy(nn.Module):
         ])
 
         self.critic = nn.Sequential(
-            nn.Linear(env.observation_space.shape[0], 128),
-            nn.Linear(128, 128),
-            nn.Linear(128, 1)
+            nn.Linear(env.observation_space.shape[0], 64),
+            nn.Linear(64, 64),
+            nn.Linear(64, 1)
         )
         
 
@@ -57,6 +55,8 @@ class MultiTaskPolicy(nn.Module):
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
     def evaluate(self, x, task_id, actions):
+        
+        
         latent = self.shared_layers(x)
         action_probs = self.task_heads[task_id](latent)
 
@@ -70,7 +70,6 @@ class MultiTaskPolicy(nn.Module):
             action_dist = MultivariateNormal(action_probs, cov_matrix)
 
         values = self.critic(x)
-        print(self.shared_layers[0].weight.grad)
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
     def run(self, obs):

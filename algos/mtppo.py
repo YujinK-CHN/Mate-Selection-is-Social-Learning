@@ -91,21 +91,26 @@ class MTPPO():
 
                     # if we reach termination or truncation, end
                     if terms or truncs:
+                        print(terms)
+                        print(truncs)
                         end_step = step
                         break
-
+            
+            print(end_step)
             # skills advantage
             with torch.no_grad():
                 rb_advantages = torch.zeros_like(rb_rewards).to(self.device)
                 for t in reversed(range(end_step)):
+                    print(t)
                     delta = (
                         rb_rewards[t]
                         + self.gamma * rb_values[t + 1] * rb_terms[t + 1]
                         - rb_values[t]
                     )
+                    print(delta)
                     rb_advantages[t] = delta + self.gamma * self.gamma * rb_advantages[t + 1]
+                    print(rb_advantages[t])
                 rb_returns = rb_advantages + rb_values
-
 
 
             # Optimizing the policy and value network
@@ -119,16 +124,14 @@ class MTPPO():
                 end = start + self.batch_size
                 batch_index = rb_index[start:end]
 
-                if self.continuous == True:
-                    old_actions = rb_actions.long()[batch_index, :]
-                else:
-                    old_actions = rb_actions.long()[batch_index, :]
+
                 _, newlogprob, entropy, values = self.policy.evaluate(
                     x = rb_obs[batch_index, :],
                     task_id = task_id,
-                    actions = old_actions
+                    actions = rb_actions[batch_index, :]
                 )
 
+                
                 logratio = newlogprob.unsqueeze(-1) - rb_logprobs[batch_index, :]
                 ratio = logratio.exp()
 
@@ -140,12 +143,12 @@ class MTPPO():
                         ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
                     ]
 
-                # normalize advantaegs
+                # normalize advantages
                 advantages = rb_advantages[batch_index, :]
                 advantages = (advantages - advantages.mean()) / (
                     advantages.std() + 1e-8
                 )
-
+                
                 # Policy loss
                 pg_loss1 = -rb_advantages[batch_index, :] * ratio
                 pg_loss2 = -rb_advantages[batch_index, :] * torch.clamp(
@@ -163,7 +166,6 @@ class MTPPO():
                 v_loss_clipped = (v_clipped - rb_returns[batch_index, :]) ** 2
                 v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
                 v_loss = 0.5 * v_loss_max.mean()
-
                 entropy_loss = entropy.mean()
                 loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
 
