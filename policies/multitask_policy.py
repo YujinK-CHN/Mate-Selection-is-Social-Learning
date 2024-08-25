@@ -66,6 +66,7 @@ class MultiTaskPolicy(nn.Module):
                 cov_matrix = torch.diag(torch.exp(self.log_std)).to(self.device)
             else:
                 cov_matrix = torch.diag(torch.exp(self.log_std)).unsqueeze(dim=0).to(self.device)
+                
             action_dist = MultivariateNormal(means, cov_matrix)
 
         values = self.critic(x)

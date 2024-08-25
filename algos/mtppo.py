@@ -25,7 +25,7 @@ class MTPPO():
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
-        self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-5)
+        self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'])
 
         self.max_cycles = config['max_cycles']
         self.pop_size = config['pop_size']
@@ -130,7 +130,7 @@ class MTPPO():
                     task_id = task_id,
                     actions = old_actions
                 )
-
+                
                 logratio = newlogprob.unsqueeze(-1) - rb_logprobs[batch_index, :]
                 ratio = logratio.exp()
 
