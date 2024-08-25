@@ -21,8 +21,7 @@ class PPO():
         self.name = 'ppo'
         self.policy = CentralizedPolicy(
             pop_size = config['pop_size'], 
-            observation_space = config['obs_shape'],
-            action_space = config['num_actions'],
+            env = env,
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
@@ -30,8 +29,7 @@ class PPO():
 
         self.max_cycles = config['max_cycles']
         self.pop_size = config['pop_size']
-        self.num_actions = config['num_actions']
-        self.obs_shape = config['obs_shape']
+        self.obs_shape = env.observation_space.shape[0]
         self.curr_latent = None
         self.total_episodes = config['total_episodes']
         self.batch_size = config['batch_size']
@@ -42,14 +40,15 @@ class PPO():
         self.continuous = config['continuous']
     
     """ TRAINING LOGIC """
+
     def train(self):
-        
+
         y = []
-        end_step = 0
+        
         total_episodic_return = 0
-        rb_obs = torch.zeros((self.max_cycles, self.pop_size, self.obs_shape)).to(self.device)
+        rb_obs = torch.zeros((self.max_cycles, self.obs_shape)).to(self.device)
         if self.continuous == True:
-            rb_actions = torch.zeros((self.max_cycles, self.pop_size, self.num_actions)).to(self.device)
+            rb_actions = torch.zeros((self.max_cycles, 6)).to(self.device)
         else:
             rb_actions = torch.zeros((self.max_cycles, self.pop_size)).to(self.device)
         rb_logprobs = torch.zeros((self.max_cycles, self.pop_size)).to(self.device)
@@ -62,9 +61,11 @@ class PPO():
             # collect an episode
             with torch.no_grad():
                 # collect observations and convert to batch of torch tensors
-                next_obs, info = self.env.reset(seed=None)
+                next_obs, info = self.env.reset()
+                task_id = self.env.tasks.index(self.env.current_task)
                 
                 # reset the episodic return
+                end_step = 0
                 total_episodic_return = 0
 
                 # each episode has num_steps
@@ -74,7 +75,7 @@ class PPO():
                     obs = torch.FloatTensor(next_obs).to(self.device)
 
                     # get actions from skills
-                    actions, logprobs, entropy, values = self.policy.act(obs)
+                    actions, logprobs, entropy, values = self.policy.act(obs, task_id)
 
                     # execute the environment and log data
                     next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
@@ -93,7 +94,9 @@ class PPO():
                     if terms or truncs:
                         end_step = step
                         break
-
+                    else:
+                        end_step = step
+            
             # skills advantage
             with torch.no_grad():
                 rb_advantages = torch.zeros_like(rb_rewards).to(self.device)
@@ -105,7 +108,6 @@ class PPO():
                     )
                     rb_advantages[t] = delta + self.gamma * self.gamma * rb_advantages[t + 1]
                 rb_returns = rb_advantages + rb_values
-
 
 
             # Optimizing the policy and value network
@@ -120,16 +122,16 @@ class PPO():
                 batch_index = rb_index[start:end]
 
                 if self.continuous == True:
-                    old_actions = rb_actions.long()[batch_index, :, :]
+                    old_actions = rb_actions.long()[batch_index, :]
                 else:
                     old_actions = rb_actions.long()[batch_index, :]
                 _, newlogprob, entropy, values = self.policy.evaluate(
-                    x = rb_obs[batch_index, :, :],
+                    x = rb_obs[batch_index, :],
+                    task_id = task_id,
                     actions = old_actions
                 )
 
-                
-                logratio = newlogprob - rb_logprobs[batch_index, :]
+                logratio = newlogprob.unsqueeze(-1) - rb_logprobs[batch_index, :]
                 ratio = logratio.exp()
 
                 with torch.no_grad():
@@ -154,7 +156,6 @@ class PPO():
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
-                values = values.squeeze(-1)
                 v_loss_unclipped = (values - rb_returns[batch_index, :]) ** 2
                 v_clipped = rb_values[batch_index, :] + torch.clamp(
                     values - rb_values[batch_index, :],
@@ -188,6 +189,7 @@ class PPO():
 
             print(f"Training episode {episode}")
             print(f"Episodic Return: {total_episodic_return}")
+            print(f"task id: {task_id}")
             print(f"Episodic Mean Return: {np.mean(total_episodic_return)}")
             print(f"Episodic Loss: {loss.item()}")
             print(f"Episode Length: {end_step}")
@@ -202,7 +204,6 @@ class PPO():
 
     def save(self, path):
         torch.save(self.policy.state_dict(), path)
-
 
     
         

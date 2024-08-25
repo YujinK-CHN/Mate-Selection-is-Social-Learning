@@ -5,80 +5,71 @@ from torch.distributions.categorical import Categorical
 from torch.distributions.multivariate_normal import MultivariateNormal
 
 class CentralizedPolicy(nn.Module):
-    def __init__(self, pop_size, observation_space, action_space, device, continuous=True):
-        super().__init__()
-        self.input_dim = observation_space
-        self.output_dim = action_space
+    def __init__(self, pop_size, env, continuous, device):
+        super(CentralizedPolicy, self).__init__()
+        self.env = env
         self.pop_size = pop_size
         self.continuous = continuous
         self.device = device
-        self.action_var = torch.full((self.output_dim,), 0.6*0.6)
+        self.log_std = nn.Parameter(torch.zeros(env.action_space.shape[0]))
 
-        if continuous == False:
-            self.actor = nn.Sequential(
-                nn.Linear(self.input_dim, 32),
-                nn.Linear(32, 32),
-                nn.Linear(32, self.output_dim),
-                nn.Softmax(dim=-1),
-            )
-        else:
-            self.actor = nn.Sequential(
-                nn.Linear(self.input_dim, 32),
-                nn.Linear(32, 32),
-                nn.Linear(32, self.output_dim),
-                nn.Tanh(),
-            )
-        
+        self.shared_layers = nn.Sequential(
+            nn.Linear(env.observation_space.shape[0], 128),
+            nn.LeakyReLU(),
+            nn.Linear(128, 128),
+            nn.LeakyReLU(),
+            nn.Linear(128, env.action_space.shape[0]),
+            nn.Tanh(),
+        )
+        '''
+        self.task_heads = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(128, env.tasks[i].action_space.shape[0]),
+                nn.Tanh()
+            ) 
+            for i in range(num_tasks)
+        ])
+        '''
         self.critic = nn.Sequential(
-                nn.Linear(self.input_dim, 32),
-                nn.Linear(32, 32),
-                nn.Linear(32, 1)
-            )
-
-    def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
-        torch.nn.init.orthogonal_(layer.weight, std)
-        torch.nn.init.constant_(layer.bias, bias_const)
-        return layer
-
-    def get_value(self, x):
-
-        values = self.critic(x)
-        return values
-
-    def act(self, x):
+            nn.Linear(env.observation_space.shape[0], 128),
+            nn.Linear(128, 128),
+            nn.Linear(128, 1)
+        )
         
-        action_probs = self.actor(x)
+
+    def act(self, x, task_id):
+        means = self.shared_layers(x)
+        # action_probs = self.task_heads[task_id](latent)
 
         if self.continuous == False:
-            action_dist = Categorical(probs=action_probs)
+            action_dist = Categorical(probs=means)
         else:
             if self.pop_size == 1:
-                cov_matrix = torch.diag(self.action_var).to(self.device)
+                cov_matrix = torch.diag(torch.exp(self.log_std)).to(self.device)
             else:
-                cov_matrix = torch.diag(self.action_var).unsqueeze(dim=0).to(self.device)
-            action_dist = MultivariateNormal(action_probs, cov_matrix)
+                cov_matrix = torch.diag(torch.exp(self.log_std)).unsqueeze(dim=0).to(self.device)
+            action_dist = MultivariateNormal(means, cov_matrix)
         
         actions = action_dist.sample()
-
         values = self.critic(x)
 
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
-    def evaluate(self, x, actions):
-
-        action_probs = self.actor(x)
+    def evaluate(self, x, task_id, actions):
+        means = self.shared_layers(x)
+        #action_probs = self.task_heads[task_id](latent)
 
         if self.continuous == False:
-            action_dist = Categorical(probs=action_probs)
+            action_dist = Categorical(probs=means)
         else:
             if self.pop_size == 1:
-                cov_matrix = torch.diag(self.action_var).to(self.device)
+                cov_matrix = torch.diag(torch.exp(self.log_std)).to(self.device)
             else:
-                cov_matrix = torch.diag(self.action_var).unsqueeze(dim=0).to(self.device)
-            action_dist = MultivariateNormal(action_probs, cov_matrix)
+                cov_matrix = torch.diag(torch.exp(self.log_std)).unsqueeze(dim=0).to(self.device)
+            action_dist = MultivariateNormal(means, cov_matrix)
 
         values = self.critic(x)
-
+        # print(self.shared_layers[2].weight.grad)
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
     def run(self, obs):

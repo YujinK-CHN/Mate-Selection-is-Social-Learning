@@ -11,14 +11,14 @@ class MultiTaskPolicy(nn.Module):
         self.pop_size = pop_size
         self.continuous = continuous
         self.device = device
-        self.log_std = nn.Parameter(torch.zeros(env.tasks[0].action_space.shape[0]))
+        self.log_std = nn.Parameter(torch.zeros(env.action_space.shape[0]))
 
         self.shared_layers = nn.Sequential(
             nn.Linear(env.observation_space.shape[0], 128),
             nn.LeakyReLU(),
             nn.Linear(128, 128),
             nn.LeakyReLU(),
-            nn.Linear(128, env.tasks[0].action_space.shape[0]),
+            nn.Linear(128, env.action_space.shape[0]),
             nn.Tanh(),
         )
         '''
