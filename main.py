@@ -56,10 +56,10 @@ if __name__ == "__main__":
         'vf_coef': 0.1,
         'clip_coef': 0.1,
         'gamma': 0.99,
-        'max_cycles': 64,
-        'batch_size': 8,
-        'total_episodes': 100000,
-        'lr': 0.001
+        'max_cycles': 512,
+        'batch_size': 128,
+        'total_episodes': 10000,
+        'lr': 0.0001
     }
 
     """ ENV SETUP """
