@@ -14,7 +14,7 @@ from algos.mtppo import MTPPO
 def create_multitask_env():
     env1 = gym.make("Walker2d-v5")
     env2 = gym.make("HalfCheetah-v5")
-    return [env1] #, env2]
+    return [env2] #, env2]
 
 class MultiTaskEnv(gym.Env):
     def __init__(self, tasks):
