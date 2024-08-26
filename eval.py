@@ -43,20 +43,25 @@ def run_trained_model(env, model, config):
 
 
     with torch.no_grad():
-        # render 5 episodes out
-        for episode in range(5):
-            next_obs, infos = env.reset()
-            obs = torch.FloatTensor(next_obs).to(config['device'])
-            terms = False
-            truncs = False
-            while not terms and not truncs:
-                actions = model.run(obs, 0)
-                print(actions)
-                obs, rewards, terms, truncs, infos = env.step(actions.cpu().numpy())
-                obs = torch.FloatTensor(obs).to(config['device'])
-                terms = terms
-                truncs = truncs
-                print(rewards)
+            # render 5 episodes out
+            for episode in range(5):
+                next_obs, infos = env.reset()
+                task_id = env.tasks.index(env.current_task)
+                terms = False
+                truncs = False
+                while not terms and not truncs:
+                    # rollover the observation 
+                    #obs = batchify_obs(next_obs, self.device)
+                    obs = torch.FloatTensor(next_obs).to(config['device'])
+
+                    # get actions from skills
+                    actions, logprobs, entropy, values = model.act(obs, task_id)
+
+                    # execute the environment and log data
+                    next_obs, rewards, terms, truncs, infos = env.step(actions.cpu().numpy())
+                    terms = terms
+                    truncs = truncs
+                    print(rewards)
 
 
 """ALGO PARAMS"""
@@ -90,10 +95,8 @@ model = CentralizedPolicy(
             device = config['device']
         ).to(config['device'])
 '''
-model.load_state_dict(torch.load('./models/walker_1_32_10000_1e-4_clip0.2.pt'))
+model.load_state_dict(torch.load('./models/mt_1_64_100000_1e-4_old.pt'))
 model.eval()
-print(model.log_std)
-model = model.to(config['device'])
 run_trained_model(multi_task_env, model, config)
 
 

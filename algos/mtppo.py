@@ -201,6 +201,31 @@ class MTPPO():
                 plt.plot(x, y)
                 plt.pause(0.05)
         plt.show()
+        self.eval()
+
+    def eval(self):
+        with torch.no_grad():
+            # render 5 episodes out
+            for episode in range(5):
+                next_obs, infos = self.env.reset()
+                task_id = self.env.tasks.index(self.env.current_task)
+                terms = False
+                truncs = False
+                while not terms and not truncs:
+                    # rollover the observation 
+                    #obs = batchify_obs(next_obs, self.device)
+                    obs = torch.FloatTensor(next_obs).to(self.device)
+
+                    # get actions from skills
+                    actions, logprobs, entropy, values = self.policy.act(obs, task_id)
+
+                    # execute the environment and log data
+                    next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
+
+                    obs = torch.FloatTensor(obs).to(self.device)
+                    terms = terms
+                    truncs = truncs
+                    print(rewards)
 
     def save(self, path):
         torch.save(self.policy.state_dict(), path)
