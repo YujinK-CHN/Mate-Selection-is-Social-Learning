@@ -12,7 +12,7 @@ from algos.mtppo import MTPPO
 
 # ,render_mode="human"
 def create_multitask_env():
-    env1 = gym.make("Walker2d-v5", render_mode="human")
+    env1 = gym.make("Walker2d-v5")
     env2 = gym.make("HalfCheetah-v5")
     return [env1] #, env2]
 
@@ -45,12 +45,12 @@ if __name__ == "__main__":
         'pop_size': 1,
         'ent_coef': 0.1,
         'vf_coef': 0.1,
-        'clip_coef': 0.2,
+        'clip_coef': 0.3,
         'gamma': 0.99,
-        'max_cycles': 32,
-        'batch_size': 4,
-        'total_episodes': 4000,
-        'lr': 1e-4
+        'max_cycles': 512,
+        'batch_size': 128,
+        'total_episodes': 10000,
+        'lr': 1e-3
     }
 
     """ ENV SETUP """

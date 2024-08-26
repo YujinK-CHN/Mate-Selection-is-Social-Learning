@@ -211,6 +211,7 @@ class MTPPO():
                 task_id = self.env.tasks.index(self.env.current_task)
                 terms = False
                 truncs = False
+                step = 0
                 while not terms and not truncs:
                     # rollover the observation 
                     #obs = batchify_obs(next_obs, self.device)
@@ -221,11 +222,10 @@ class MTPPO():
 
                     # execute the environment and log data
                     next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
-
-                    obs = torch.FloatTensor(obs).to(self.device)
                     terms = terms
                     truncs = truncs
-                    print(rewards)
+                    print(f"step {step}", rewards)
+                    step+=1
 
     def save(self, path):
         torch.save(self.policy.state_dict(), path)
