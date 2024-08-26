@@ -11,7 +11,7 @@ class MultiTaskPolicy(nn.Module):
         self.pop_size = pop_size
         self.continuous = continuous
         self.device = device
-        self.log_std = nn.Parameter(torch.zeros(env.action_space.shape[0]))
+        self.log_std = nn.Parameter(torch.full((env.action_space.shape[0],), 0.6*0.6))
 
         self.shared_layers = nn.Sequential(
             nn.Linear(env.observation_space.shape[0], 128),
@@ -45,9 +45,9 @@ class MultiTaskPolicy(nn.Module):
             action_dist = Categorical(probs=means)
         else:
             if self.pop_size == 1:
-                cov_matrix = torch.diag(torch.exp(self.log_std)).to(self.device)
+                cov_matrix = torch.diag(self.log_std).to(self.device)
             else:
-                cov_matrix = torch.diag(torch.exp(self.log_std)).unsqueeze(dim=0).to(self.device)
+                cov_matrix = torch.diag(self.log_std).unsqueeze(dim=0).to(self.device)
             action_dist = MultivariateNormal(means, cov_matrix)
         
         actions = action_dist.sample()
@@ -63,15 +63,18 @@ class MultiTaskPolicy(nn.Module):
             action_dist = Categorical(probs=means)
         else:
             if self.pop_size == 1:
-                cov_matrix = torch.diag(torch.exp(self.log_std)).to(self.device)
+                action_var = self.log_std.expand_as(means)
+                cov_matrix = torch.diag_embed(action_var).to(self.device)
             else:
-                cov_matrix = torch.diag(torch.exp(self.log_std)).unsqueeze(dim=0).to(self.device)
+                action_var = self.log_std.expand_as(means)
+                cov_matrix = torch.diag_embed(action_var).unsqueeze(dim=0).to(self.device)
+                
             action_dist = MultivariateNormal(means, cov_matrix)
 
         values = self.critic(x)
         # print(self.shared_layers[2].weight.grad)
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
-    def run(self, obs):
-        actions, _, _, _ = self.act(obs)
+    def run(self, obs, task_id):
+        actions, _, _, _ = self.act(obs, task_id)
         return actions
