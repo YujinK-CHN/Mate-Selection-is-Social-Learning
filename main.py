@@ -10,20 +10,21 @@ from algos.mtppo import MTPPO
 import metaworld
 import random
 
-ml10 = metaworld.MT10() # Construct the benchmark, sampling tasks
+mt = metaworld.MT1('pick-place-v2') # Construct the benchmark, sampling tasks
+#mt = metaworld.MT10() # Construct the benchmark, sampling tasks
 
 def create_metaworld():
     training_envs = []
-    for name, env_cls in ml10.train_classes.items():
+    for name, env_cls in mt.train_classes.items():
         env = env_cls()
-        task = random.choice([task for task in ml10.train_tasks
+        task = random.choice([task for task in mt.train_tasks
                                 if task.env_name == name])
         env.set_task(task)
         training_envs.append(env)
     return training_envs
 
 
-class MultiTaskEnv(gym.Env):
+class MultiTaskEnv():
     def __init__(self, tasks):
         self.tasks = tasks # [task1, task2]
         self.current_task = None
@@ -52,15 +53,16 @@ if __name__ == "__main__":
         'pop_size': 1,
         'ent_coef': 0.1,
         'vf_coef': 0.1,
-        'clip_coef': 0.1,
+        'clip_coef': 0.3,
         'gamma': 0.99,
-        'max_cycles': 512,
-        'batch_size': 128,
+        'max_cycles': 256,
+        'batch_size': 64,
         'total_episodes': 10000,
-        'lr': 0.0001
+        'lr': 1e-4
     }
 
     """ ENV SETUP """
+    print(create_metaworld())
     multi_task_env = MultiTaskEnv(create_metaworld())
 
     """ ALGO SETUP """

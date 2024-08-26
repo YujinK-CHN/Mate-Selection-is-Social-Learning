@@ -109,7 +109,6 @@ class MTPPO():
                     rb_advantages[t] = delta + self.gamma * self.gamma * rb_advantages[t + 1]
                 rb_returns = rb_advantages + rb_values
 
-
             # Optimizing the policy and value network
             rb_index = np.arange(rb_obs.shape[0])
             clip_fracs = []
@@ -197,7 +196,7 @@ class MTPPO():
 
             x = np.linspace(0, episode, episode+1)
             y.append(np.mean(total_episodic_return))
-            if episode % 1000 == 0:
+            if episode % 10 == 0:
                 plt.plot(x, y)
                 plt.pause(0.05)
         plt.show()
