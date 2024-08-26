@@ -48,12 +48,12 @@ if __name__ == "__main__":
         'pop_size': 1,
         'ent_coef': 0.1,
         'vf_coef': 0.1,
-        'clip_coef': 0.1,
+        'clip_coef': 0.2,
         'gamma': 0.99,
         'max_cycles': 32,
         'batch_size': 4,
-        'total_episodes': 100000,
-        'lr': 1e-3
+        'total_episodes': 10000,
+        'lr': 1e-4
     }
 
     """ ENV SETUP """

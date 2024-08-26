@@ -75,6 +75,6 @@ class MultiTaskPolicy(nn.Module):
         # print(self.shared_layers[2].weight.grad)
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
-    def run(self, obs):
-        actions, _, _, _ = self.act(obs)
+    def run(self, obs, task_id):
+        actions, _, _, _ = self.act(obs, task_id)
         return actions
