@@ -44,7 +44,7 @@ class MTPPO():
     def train(self):
 
         y = []
-        end_step = 0
+        
         total_episodic_return = 0
         rb_obs = torch.zeros((self.max_cycles, self.obs_shape)).to(self.device)
         if self.continuous == True:
@@ -65,6 +65,7 @@ class MTPPO():
                 task_id = self.env.tasks.index(self.env.current_task)
                 
                 # reset the episodic return
+                end_step = 0
                 total_episodic_return = 0
 
                 # each episode has num_steps
@@ -96,7 +97,6 @@ class MTPPO():
                     else:
                         end_step = step
             
-            
             # skills advantage
             with torch.no_grad():
                 rb_advantages = torch.zeros_like(rb_rewards).to(self.device)
@@ -121,13 +121,15 @@ class MTPPO():
                 end = start + self.batch_size
                 batch_index = rb_index[start:end]
 
-
+                if self.continuous == True:
+                    old_actions = rb_actions.long()[batch_index, :]
+                else:
+                    old_actions = rb_actions.long()[batch_index, :]
                 _, newlogprob, entropy, values = self.policy.evaluate(
                     x = rb_obs[batch_index, :],
                     task_id = task_id,
-                    actions = rb_actions[batch_index, :]
+                    actions = old_actions
                 )
-
                 
                 logratio = newlogprob.unsqueeze(-1) - rb_logprobs[batch_index, :]
                 ratio = logratio.exp()
@@ -140,12 +142,12 @@ class MTPPO():
                         ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
                     ]
 
-                # normalize advantages
+                # normalize advantaegs
                 advantages = rb_advantages[batch_index, :]
                 advantages = (advantages - advantages.mean()) / (
                     advantages.std() + 1e-8
                 )
-                
+
                 # Policy loss
                 pg_loss1 = -rb_advantages[batch_index, :] * ratio
                 pg_loss2 = -rb_advantages[batch_index, :] * torch.clamp(
@@ -163,6 +165,7 @@ class MTPPO():
                 v_loss_clipped = (v_clipped - rb_returns[batch_index, :]) ** 2
                 v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
                 v_loss = 0.5 * v_loss_max.mean()
+
                 entropy_loss = entropy.mean()
                 loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
 
@@ -183,11 +186,7 @@ class MTPPO():
                 self.opt.zero_grad()
                 loss.backward()
                 self.opt.step()
-                '''
-                for param in self.policy.parameters():
-                    print(param.grad)
 
-                '''
             print(f"Training episode {episode}")
             print(f"Episodic Return: {total_episodic_return}")
             print(f"task id: {task_id}")
@@ -198,14 +197,35 @@ class MTPPO():
 
             x = np.linspace(0, episode, episode+1)
             y.append(np.mean(total_episodic_return))
-            if episode % 100 == 0:
+            if episode % 1000 == 0:
                 plt.plot(x, y)
                 plt.pause(0.05)
         plt.show()
+        self.eval()
+
+    def eval(self):
+        with torch.no_grad():
+            # render 5 episodes out
+            for episode in range(5):
+                next_obs, infos = self.env.reset()
+                task_id = self.env.tasks.index(self.env.current_task)
+                terms = False
+                truncs = False
+                step = 0
+                while not terms and not truncs:
+                    # rollover the observation 
+                    #obs = batchify_obs(next_obs, self.device)
+                    obs = torch.FloatTensor(next_obs).to(self.device)
+
+                    # get actions from skills
+                    actions, logprobs, entropy, values = self.policy.act(obs, task_id)
+
+                    # execute the environment and log data
+                    next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
+                    terms = terms
+                    truncs = truncs
+                    print(f"step {step}", rewards)
+                    step+=1
 
     def save(self, path):
         torch.save(self.policy.state_dict(), path)
-
-
-    
-        
