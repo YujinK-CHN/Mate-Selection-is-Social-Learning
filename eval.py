@@ -51,6 +51,7 @@ def run_trained_model(env, model, config):
             truncs = False
             while not terms and not truncs:
                 actions = model.run(obs, 0)
+                print(actions)
                 obs, rewards, terms, truncs, infos = env.step(actions.cpu().numpy())
                 obs = torch.FloatTensor(obs).to(config['device'])
                 terms = terms
@@ -89,8 +90,9 @@ model = CentralizedPolicy(
             device = config['device']
         ).to(config['device'])
 '''
-model.load_state_dict(torch.load('./models/walker_1_32_10000_0.0001.pt'))
+model.load_state_dict(torch.load('./models/walker_1_32_10000_1e-4_clip0.2.pt'))
 model.eval()
+print(model.log_std)
 model = model.to(config['device'])
 run_trained_model(multi_task_env, model, config)
 

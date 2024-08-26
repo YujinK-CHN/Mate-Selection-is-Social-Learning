@@ -25,7 +25,7 @@ class MultiTaskEnv(gym.Env):
 
     def reset(self):
         self.current_task = self.select_task()
-        return self.current_task.reset(seed=0)
+        return self.current_task.reset(seed=None)
 
     def select_task(self):
         # You can implement random task selection, cyclic switching, or other strategies
