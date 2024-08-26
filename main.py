@@ -55,7 +55,7 @@ if __name__ == "__main__":
         'vf_coef': 0.1,
         'clip_coef': 0.2,
         'gamma': 0.95,
-        'max_cycles': 256,
+        'max_cycles': 500,
         'batch_size': 32,
         'total_episodes': 50000,
         'lr': 5e-4
