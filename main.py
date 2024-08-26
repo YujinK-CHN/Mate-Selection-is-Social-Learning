@@ -10,7 +10,7 @@ from algos.mtppo import MTPPO
 import metaworld
 import random
 
-mt = metaworld.MT1('pick-place-v2') # Construct the benchmark, sampling tasks
+mt = metaworld.MT1('reach-v2') # Construct the benchmark, sampling tasks
 #mt = metaworld.MT10() # Construct the benchmark, sampling tasks
 
 def create_metaworld():
@@ -53,12 +53,12 @@ if __name__ == "__main__":
         'pop_size': 1,
         'ent_coef': 0.1,
         'vf_coef': 0.1,
-        'clip_coef': 0.3,
-        'gamma': 0.99,
+        'clip_coef': 0.2,
+        'gamma': 0.95,
         'max_cycles': 256,
-        'batch_size': 64,
-        'total_episodes': 10000,
-        'lr': 1e-4
+        'batch_size': 32,
+        'total_episodes': 50000,
+        'lr': 5e-4
     }
 
     """ ENV SETUP """
