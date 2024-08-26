@@ -23,7 +23,7 @@ def create_metaworld():
     return training_envs
 
 
-class MultiTaskEnv():
+class MultiTaskEnv(gym.Env):
     def __init__(self, tasks):
         self.tasks = tasks # [task1, task2]
         self.current_task = None
@@ -32,7 +32,7 @@ class MultiTaskEnv():
 
     def reset(self):
         self.current_task = self.select_task()
-        return self.current_task.reset(seed=0)
+        return self.current_task.reset(seed=None)
 
     def select_task(self):
         # You can implement random task selection, cyclic switching, or other strategies
@@ -40,9 +40,6 @@ class MultiTaskEnv():
 
     def step(self, action):
         return self.current_task.step(action)
-
-    def render(self, mode='human'):
-        self.current_task.render(mode)
 
 
 if __name__ == "__main__":
