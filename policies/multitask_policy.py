@@ -11,7 +11,7 @@ class MultiTaskPolicy(nn.Module):
         self.pop_size = pop_size
         self.continuous = continuous
         self.device = device
-        self.log_std = nn.Parameter(torch.full((env.action_space.shape[0],), 0.5))
+        self.log_std = nn.Parameter(torch.full((env.action_space.shape[0],), 1.0))
 
         self.shared_layers = nn.Sequential(
             nn.Linear(env.observation_space.shape[0], 128),
@@ -78,3 +78,5 @@ class MultiTaskPolicy(nn.Module):
     def run(self, obs, task_id):
         actions, _, _, _ = self.act(obs, task_id)
         return actions
+    
+

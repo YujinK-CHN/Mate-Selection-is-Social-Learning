@@ -10,7 +10,7 @@ from algos.mtppo import MTPPO
 import metaworld
 import random
 
-mt = metaworld.MT1('reach-v2') # Construct the benchmark, sampling tasks
+mt = metaworld.MT1('reach-v2', seed=0) # Construct the benchmark, sampling tasks
 #mt = metaworld.MT10() # Construct the benchmark, sampling tasks
 
 def create_metaworld():
@@ -33,7 +33,7 @@ class MultiTaskEnv():
 
     def reset(self):
         self.current_task = self.select_task()
-        return self.current_task.reset(seed=None)
+        return self.current_task.reset()
 
     def select_task(self):
         # You can implement random task selection, cyclic switching, or other strategies
@@ -47,18 +47,19 @@ if __name__ == "__main__":
     """ALGO PARAMS"""
     config = {
         'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        'obs_shape': None,
-        'num_actions': None,
         'continuous': True,
         'pop_size': 1,
-        'ent_coef': 0.1,
+        'ent_coef': 5e-3,
         'vf_coef': 0.1,
-        'clip_coef': 0.2,
-        'gamma': 0.95,
-        'max_cycles': 500,
-        'batch_size': 32,
-        'total_episodes': 50000,
-        'lr': 5e-4
+        'lr_clip_range': 0.2,
+        'discount': 0.99,
+        'gae_lambda': 0.95,
+        'batch_size': 5000,
+        'max_path_length': 500,
+        'min_batch': 32,
+        'epoch_opt': 256,
+        'total_episodes': 4000,
+        'lr': 0.0005
     }
 
     """ ENV SETUP """
