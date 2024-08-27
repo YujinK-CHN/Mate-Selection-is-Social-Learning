@@ -47,22 +47,26 @@ class MTPPO():
 
         y = []
         
-        total_episodic_return = 0
-        rb_obs = torch.zeros((self.batch_size, self.obs_shape)).to(self.device)
-        if self.continuous == True:
-            rb_actions = torch.zeros((self.batch_size, self.env.action_space.shape[0])).to(self.device)
-        else:
-            rb_actions = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
-        rb_logprobs = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
-        rb_rewards = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
-        rb_terms = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
-        rb_values = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
+        
 
         # success_tracker = MultiTaskSuccessTracker(len(self.env.tasks))
-
         
         # train for n number of episodes
         for episode in range(self.total_episodes): # 4000
+
+            # clear memory
+            rb_obs = torch.zeros((self.batch_size, self.obs_shape)).to(self.device)
+            if self.continuous == True:
+                rb_actions = torch.zeros((self.batch_size, self.env.action_space.shape[0])).to(self.device)
+            else:
+                rb_actions = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
+            rb_logprobs = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
+            rb_rewards = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
+            rb_advantages = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
+            rb_terms = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
+            rb_values = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
+
+            # sampling
             index = 0
             episodic_return = []
             for epoch in range(int(self.batch_size / self.max_cycles)): # 5000 / 500 = 10
@@ -103,23 +107,23 @@ class MTPPO():
 
                         # if we reach termination or truncation, end
                         if terms or truncs:
-                            end_step = step
                             break
-                        else:
-                            end_step = step
+
                         index += 1
                         episodic_return.append(epoch_return)
 
+                    index += 1
 
-            # skills advantage
-            with torch.no_grad():
-                rb_advantages = torch.zeros_like(rb_rewards).to(self.device)
-                gae = 0
-                for t in reversed(range(end_step)):
-                    delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
-                    gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
-                    rb_advantages[t] = gae
-                rb_returns = rb_advantages + rb_values
+                    
+                    # skills advantage
+                    with torch.no_grad():
+                        gae = 0
+                        for t in range(index-2, (index-self.max_cycles)-1, -1):
+                            delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
+                            gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
+                            rb_advantages[t] = gae
+                            
+            rb_returns = rb_advantages + rb_values
 
             # Optimizing the policy and value network
          
@@ -207,7 +211,7 @@ class MTPPO():
             print("\n-------------------------------------------\n")
 
             x = np.linspace(0, episode, episode+1)
-            y.append(np.mean(total_episodic_return))
+            y.append(np.mean(episodic_return))
             if episode % 10 == 0:
                 plt.plot(x, y)
                 plt.pause(0.05)
