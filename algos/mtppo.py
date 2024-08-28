@@ -53,7 +53,7 @@ class MTPPO():
         
         # train for n number of episodes
         for episode in range(self.total_episodes): # 4000
-
+            self.policy.train()
             # clear memory
             rb_obs = torch.zeros((self.batch_size, self.obs_shape)).to(self.device)
             if self.continuous == True:
@@ -203,7 +203,8 @@ class MTPPO():
                     loss.backward()
                     self.opt.step()
 
-            mean_eval_return, mean_success_rate= self.eval()
+            mean_eval_return, mean_success_rate = self.eval()
+            
             print(f"Training episode {episode}")
             print(f"task id: {task_id}")
             print(f"Episodic Return: {np.mean(episodic_return)}")
@@ -226,6 +227,7 @@ class MTPPO():
     def eval(self):
         episodic_return = []
         success_rates = []
+        self.policy.eval()
         with torch.no_grad():
             # render 5 episodes out
             for episode in range(5):
@@ -249,7 +251,7 @@ class MTPPO():
                     success_tracker.update(task_id, success)
                     terms = terms
                     truncs = truncs
-                    step_return += rewards.cpu().numpy()
+                    step_return += rewards
                 episodic_return.append(step_return)
                 success_rates.append(success_tracker.overall_success_rate())
 
