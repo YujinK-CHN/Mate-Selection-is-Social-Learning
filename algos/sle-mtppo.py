@@ -2,13 +2,15 @@ import torch
 import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
+import copy
 
 from processing.batching import batchify, batchify_obs, unbatchify
-from loss.ppo_loss import clip_ppo_loss
+from processing.l0module import L0GateLayer1d, concat_first_linear, concat_middle_linear, concat_last_linear,  \
+    compress_first_linear, compress_middle_linear, compress_final_linear
 from policies.centralized_policy import CentralizedPolicy
 from policies.multitask_policy import MultiTaskPolicy
 
-class MTPPO():
+class SLE_MTPPO():
 
     def __init__(
             self,
@@ -18,7 +20,7 @@ class MTPPO():
         self.env = env
         self.obs_shape = env.observation_space.shape[0]
         self.device = config['device']
-        self.name = 'mtppo'
+        self.name = 'sle-mtppo'
         self.policy = MultiTaskPolicy(
             pop_size = config['pop_size'], 
             env = env,
@@ -182,20 +184,6 @@ class MTPPO():
                     entropy_loss = entropy.max()
                     loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
 
-                    '''
-                    loss = clip_ppo_loss(
-                        newlogprob,
-                        entropy,
-                        value,
-                        b_values[batch_index],
-                        b_logprobs[batch_index],
-                        b_advantages[batch_index],
-                        b_returns[batch_index],
-                        self.clip_coef,
-                        self.ent_coef,
-                        self.vf_coef
-                    )
-                    '''
                     self.opt.zero_grad()
                     loss.backward()
                     self.opt.step()
