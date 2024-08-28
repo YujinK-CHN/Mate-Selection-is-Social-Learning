@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,6 +10,33 @@ from processing.l0module import L0GateLayer1d, concat_first_linear, concat_middl
     compress_first_linear, compress_middle_linear, compress_final_linear
 from policies.centralized_policy import CentralizedPolicy
 from policies.multitask_policy import MultiTaskPolicy
+
+class MultiTaskSuccessTracker:
+    def __init__(self, num_tasks):
+        self.num_tasks = num_tasks
+        self.success_counts = [0] * num_tasks
+        self.total_counts = [0] * num_tasks
+
+    def update(self, task_id, success):
+        """Update success counts based on task_id."""
+        self.total_counts[task_id] += 1
+        if success:
+            self.success_counts[task_id] += 1
+
+    def task_success_rate(self, task_id):
+        """Calculate success rate for a specific task."""
+        if self.total_counts[task_id] == 0:
+            return 0.0
+        return self.success_counts[task_id] / self.total_counts[task_id]
+
+    def overall_success_rate(self):
+        """Calculate the overall success rate across all tasks."""
+        total_successes = sum(self.success_counts)
+        total_attempts = sum(self.total_counts)
+        if total_attempts == 0:
+            return 0.0
+        return total_successes / total_attempts
+
 
 class SLE_MTPPO():
 
@@ -28,9 +56,14 @@ class SLE_MTPPO():
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
-        self.pop_gates = L0GateLayer1d(n_features=1024) # reset at each time evolve.
+        self.gate = L0GateLayer1d(n_features=1024) # reset at each time evolve.
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-5)
         self.opt_gate = optim.SGD(self.pop_gates.parameters(), lr=0.001, momentum=0.9)
+
+        self.pop = nn.ModuleList([
+                    copy.deepcopy(self.policy.shared_layers)
+                    for _ in range(config['pop_size'])
+                ])
 
         self.max_cycles = config['max_path_length']
         self.pop_size = config['pop_size']
@@ -44,6 +77,13 @@ class SLE_MTPPO():
         self.ent_coef = config['ent_coef']
         self.vf_coef = config['vf_coef']
         self.continuous = config['continuous']
+
+        # GA hyperparameters
+        self.alpha = 0.01
+        self.mutation_rate = 0.003
+        self.evolution_period = 2000
+        self.merging_period = 250
+        self.merging = None
     
     """ TRAINING LOGIC """
 
@@ -56,6 +96,48 @@ class SLE_MTPPO():
         # train for n number of episodes
         for episode in range(self.total_episodes): # 4000
             self.policy.train()
+
+            # after children born, use 250 eps for merging (train the gates).
+            # then, compress the big student and finetune until next evolution.
+            if episode % self.merging_period == 0 and self.merging == True:
+                for i, gate in enumerate(self.pop_gates):
+                    important_indices = gate.important_indices()
+                    self.policy.pop_actors[i] = nn.Sequential(
+                        compress_first_linear(self.policy.pop_actors[i][0], important_indices),
+                        compress_middle_linear(self.policy.pop_actors[i][1], torch.arange(self.hidden_size), important_indices),
+                        compress_final_linear(self.policy.pop_actors[i][-2], important_indices),
+                        nn.Softmax(dim=-1)
+                    )
+                
+                self.merging = False # means merging is done -> start to finetune.
+
+            #################################### Genetic Algorithm ####################################
+            # evolve every _ eps. 
+            if episode % self.evolution_period == 0:
+                
+
+                # reset gates.
+                self.gate = L0GateLayer1d(n_features=1024)
+
+                # make kid: randomly mutate the main_charactor _ times and append those kids to population
+                self.pop = self.make_kid(self.policy.shared_layers)
+                
+                # fitness func / evaluation: currently using rewards as fitness for each agents
+                fitness = self.get_fitness(0)
+
+                # kill bad: only keep half pop (e.g. 6 -> pop_size=3) top fitness
+                self.pop = self.kill_bad(self.pop)
+
+                # mate selection
+                partner = self.select(self.pop, fitness)
+
+                # crossover
+                self.policy.shared_layers = self.crossover(self.policy.shared_layers, self.gate, partner)
+
+                # merging button: ON
+                self.merging = True
+            ###########################################################################################
+
             # clear memory
             rb_obs = torch.zeros((self.batch_size, self.obs_shape)).to(self.device)
             if self.continuous == True:
@@ -129,7 +211,6 @@ class SLE_MTPPO():
             # Optimizing the policy and value network
          
             rb_index = np.arange(rb_obs.shape[0])
-            clip_fracs = []
             for epoch in range(self.epoch_opt): # 256
                 # shuffle the indices we use to access the data
                 np.random.shuffle(rb_index)
@@ -148,47 +229,29 @@ class SLE_MTPPO():
                         actions = old_actions
                     )
                     
-                    logratio = newlogprob.unsqueeze(-1) - rb_logprobs[batch_index, :]
-                    ratio = logratio.exp()
 
-                    with torch.no_grad():
-                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                        old_approx_kl = (-logratio).mean()
-                        approx_kl = ((ratio - 1) - logratio).mean()
-                        clip_fracs += [
-                            ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
-                        ]
-
-                    # normalize advantaegs
-                    advantages = rb_advantages[batch_index, :]
-                    advantages = (advantages - advantages.mean()) / (
-                        advantages.std() + 1e-8
-                    )
-
-                    # Policy loss
-                    pg_loss1 = -rb_advantages[batch_index, :] * ratio
-                    pg_loss2 = -rb_advantages[batch_index, :] * torch.clamp(
-                        ratio, 1 - self.clip_coef, 1 + self.clip_coef
-                    )
-                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
-
-                    # Value loss
-                    v_loss_unclipped = (values - rb_returns[batch_index, :]) ** 2
-                    v_clipped = rb_values[batch_index, :] + torch.clamp(
-                        values - rb_values[batch_index, :],
-                        -self.clip_coef,
-                        self.clip_coef,
-                    )
-                    v_loss_clipped = (v_clipped - rb_returns[batch_index, :]) ** 2
-                    v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                    v_loss = 0.5 * v_loss_max.mean()
-
-                    entropy_loss = entropy.max()
-                    loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
-
-                    self.opt.zero_grad()
-                    loss.backward()
-                    self.opt.step()
+                    if self.merging == True:
+                        loss = self.train_merging_stage(
+                            newlogprob,
+                            rb_logprobs[batch_index, :],
+                            rb_advantages[batch_index, :],
+                            values,
+                            rb_returns[batch_index, :],
+                            rb_values[batch_index, :],
+                            entropy
+                        )
+                        self.alpha += 0.05 * np.sqrt(self.alpha).item()
+                    else:
+                        self.alpha = 0.01
+                        loss = self.train_finetune_stage(
+                            newlogprob,
+                            rb_logprobs[batch_index, :],
+                            rb_advantages[batch_index, :],
+                            values,
+                            rb_returns[batch_index, :],
+                            rb_values[batch_index, :],
+                            entropy
+                        )
 
             mean_eval_return, mean_success_rate = self.eval()
             
@@ -248,28 +311,139 @@ class SLE_MTPPO():
         torch.save(self.policy.state_dict(), path)
 
 
-class MultiTaskSuccessTracker:
-    def __init__(self, num_tasks):
-        self.num_tasks = num_tasks
-        self.success_counts = [0] * num_tasks
-        self.total_counts = [0] * num_tasks
+    def make_kid(self, main_ch: torch.nn.Sequential) -> nn.ModuleList:
+        # mutation: randomly mutate the main_charactor _ times and append those kids to population
+        return self.pop
+    
 
-    def update(self, task_id, success):
-        """Update success counts based on task_id."""
-        self.total_counts[task_id] += 1
-        if success:
-            self.success_counts[task_id] += 1
+    def get_fitness(self, rewards: list) -> np.array:
+        # shift rewards to postive value.
+        min_reward = np.min(rewards)
+        shift_constant = np.abs(min_reward) + 1  # Shift to make the minimum reward 1
+        scaled_rewards = np.asarray([r + shift_constant for r in rewards], dtype=np.float32)
+        return scaled_rewards
+    
+    def kill_bad(self, pop: torch.nn.ModuleList):
+        return pop
 
-    def task_success_rate(self, task_id):
-        """Calculate success rate for a specific task."""
-        if self.total_counts[task_id] == 0:
-            return 0.0
-        return self.success_counts[task_id] / self.total_counts[task_id]
 
-    def overall_success_rate(self):
-        """Calculate the overall success rate across all tasks."""
-        total_successes = sum(self.success_counts)
-        total_attempts = sum(self.total_counts)
-        if total_attempts == 0:
-            return 0.0
-        return total_successes / total_attempts
+    def select(self, pop: torch.nn.ModuleList, fitness: np.array) -> torch.nn.ModuleList:
+        idx = np.random.choice(np.arange(self.n_agents), size=self.n_agents, p=fitness/fitness.sum())
+        new_pop = copy.deepcopy(pop)
+        for i, actor in enumerate(new_pop):
+            actor = pop[idx[i]]
+        return new_pop
+
+
+    def crossover(self, parent1: torch.nn.Sequential, gate: nn.Module, parent2: torch.nn.Sequential) -> torch.nn.Sequential:
+        child = nn.Sequential(
+            concat_first_linear(parent1[0], parent2[0]),
+            concat_middle_linear(parent1[1], parent2[1]),
+            gate,
+            concat_last_linear(parent1[-2], parent2[-2]),
+            nn.Softmax(dim=-1)
+        )
+        return child
+
+
+
+
+    def train_merging_stage(
+                            self,
+                            newlogprob,
+                            rb_logprobs,
+                            rb_advantages,
+                            values,
+                            rb_returns,
+                            rb_values,
+                            entropy
+                    ):
+                        logratio = newlogprob.unsqueeze(-1) - rb_logprobs
+                        ratio = logratio.exp()
+
+                        # normalize advantaegs
+                        advantages = rb_advantages
+                        advantages = (advantages - advantages.mean()) / (
+                            advantages.std() + 1e-8
+                        )
+
+                        # Policy loss
+                        pg_loss1 = -rb_advantages * ratio
+                        pg_loss2 = -rb_advantages * torch.clamp(
+                            ratio, 1 - self.clip_coef, 1 + self.clip_coef
+                        )
+                        pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
+                        # Value loss
+                        v_loss_unclipped = (values - rb_returns) ** 2
+                        v_clipped = rb_values + torch.clamp(
+                            values - rb_values,
+                            -self.clip_coef,
+                            self.clip_coef,
+                        )
+                        v_loss_clipped = (v_clipped - rb_returns) ** 2
+                        v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                        v_loss = 0.5 * v_loss_max.mean()
+
+                        entropy_loss = entropy.max()
+                        loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
+
+                        l0_loss = self.gate.l0_loss()
+                        # print(l0_loss)
+
+                        loss = loss + l0_loss.mean()
+
+                        self.opt.zero_grad()
+                        self.opt_gate.zero_grad()
+                        loss.backward()
+                        self.opt.step()
+                        self.opt_gate.step()
+
+                        return loss
+
+
+    def train_finetune_stage(
+                            self,
+                            newlogprob,
+                            rb_logprobs,
+                            rb_advantages,
+                            values,
+                            rb_returns,
+                            rb_values,
+                            entropy
+                    ):
+                        logratio = newlogprob.unsqueeze(-1) - rb_logprobs
+                        ratio = logratio.exp()
+
+                        # normalize advantaegs
+                        advantages = rb_advantages
+                        advantages = (advantages - advantages.mean()) / (
+                            advantages.std() + 1e-8
+                        )
+
+                        # Policy loss
+                        pg_loss1 = -rb_advantages * ratio
+                        pg_loss2 = -rb_advantages * torch.clamp(
+                            ratio, 1 - self.clip_coef, 1 + self.clip_coef
+                        )
+                        pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
+                        # Value loss
+                        v_loss_unclipped = (values - rb_returns) ** 2
+                        v_clipped = rb_values + torch.clamp(
+                            values - rb_values,
+                            -self.clip_coef,
+                            self.clip_coef,
+                        )
+                        v_loss_clipped = (v_clipped - rb_returns) ** 2
+                        v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                        v_loss = 0.5 * v_loss_max.mean()
+
+                        entropy_loss = entropy.max()
+                        loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
+
+                        self.opt.zero_grad()
+                        loss.backward()
+                        self.opt.step()
+
+                        return loss

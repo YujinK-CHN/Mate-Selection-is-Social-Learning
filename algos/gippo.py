@@ -9,7 +9,6 @@ import copy
 from processing.batching import batchify, batchify_obs, unbatchify
 from processing.l0module import L0GateLayer1d, concat_first_linear, concat_middle_linear, concat_last_linear,  \
     compress_first_linear, compress_middle_linear, compress_final_linear
-from loss.ppo_loss import clip_ppo_loss
 from policies.independent_policy import IndependentPolicy
 from policies.centralized_policy import CentralizedPolicy
 import matplotlib.pyplot as plt
