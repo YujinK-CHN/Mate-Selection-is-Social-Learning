@@ -47,9 +47,7 @@ class MTPPO():
 
         y1 = []
         y2 = []
-        
-
-        # success_tracker = MultiTaskSuccessTracker(len(self.env.tasks))
+        y3 = []
         
         # train for n number of episodes
         for episode in range(self.total_episodes): # 4000
@@ -69,18 +67,17 @@ class MTPPO():
             # sampling
             index = 0
             episodic_return = []
+            success_tracker = MultiTaskSuccessTracker(len(self.env.tasks))
+            
             for epoch in range(int(self.batch_size / self.max_cycles)): # 5000 / 500 = 10
                 # collect an episode
                 with torch.no_grad():
                     # collect observations and convert to batch of torch tensors
                     next_obs, info = self.env.reset()
                     task_id = self.env.tasks.index(self.env.current_task)
+
+                    step_return = 0
                     
-                    # reset the episodic return
-
-                    end_step = 0
-                    epoch_return = 0
-
                     # each episode has num_steps
                     for step in range(0, self.max_cycles):
                         # rollover the observation 
@@ -92,8 +89,8 @@ class MTPPO():
 
                         # execute the environment and log data
                         next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
-                        # success = infos.get('success', False)
-                        # success_tracker.update(task_id, success)
+                        success = infos.get('success', False)
+                        success_tracker.update(task_id, success)
 
                         # add to episode storage
                         rb_obs[index] = obs
@@ -103,14 +100,14 @@ class MTPPO():
                         rb_logprobs[index] = logprobs
                         rb_values[index] = values.flatten()
                         # compute episodic return
-                        epoch_return += rb_rewards[index].cpu().numpy()
+                        step_return += rb_rewards[index].cpu().numpy()
 
                         # if we reach termination or truncation, end
                         if terms or truncs:
                             break
 
                         index += 1
-                        episodic_return.append(epoch_return)
+                    episodic_return.append(step_return)
 
                     index += 1
 
@@ -206,8 +203,8 @@ class MTPPO():
             mean_eval_return, mean_success_rate = self.eval()
             
             print(f"Training episode {episode}")
-            print(f"task id: {task_id}")
             print(f"Episodic Return: {np.mean(episodic_return)}")
+            print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
             print(f"Evaluation Return: {mean_eval_return}")
             print(f"Evaluation success rate: {mean_success_rate}")
             print(f"Episodic Loss: {loss.item()}")
@@ -217,21 +214,22 @@ class MTPPO():
             x = np.linspace(0, episode, episode+1)
             y1.append(np.mean(episodic_return))
             y2.append(mean_eval_return)
+            y3.append(success_tracker.overall_success_rate())
             if episode % 10 == 0:
                 plt.plot(x, y1)
                 plt.plot(x, y2)
+                plt.plot(x, y3)
                 plt.pause(0.05)
         plt.show()
         
 
     def eval(self):
         episodic_return = []
-        success_rates = []
+        success_tracker_eval = MultiTaskSuccessTracker(len(self.env.tasks))
         self.policy.eval()
         with torch.no_grad():
             # render 5 episodes out
             for episode in range(5):
-                success_tracker = MultiTaskSuccessTracker(1)
                 next_obs, infos = self.env.reset()
                 task_id = self.env.tasks.index(self.env.current_task)
                 terms = False
@@ -248,14 +246,13 @@ class MTPPO():
                     # execute the environment and log data
                     next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
                     success = infos.get('success', False)
-                    success_tracker.update(task_id, success)
+                    success_tracker_eval.update(task_id, success)
                     terms = terms
                     truncs = truncs
                     step_return += rewards
                 episodic_return.append(step_return)
-                success_rates.append(success_tracker.overall_success_rate())
 
-        return np.mean(episodic_return), np.mean(success_rates)
+        return np.mean(episodic_return), success_tracker_eval.overall_success_rate()
 
     def save(self, path):
         torch.save(self.policy.state_dict(), path)

@@ -10,8 +10,8 @@ from algos.mtppo import MTPPO
 import metaworld
 import random
 
-mt = metaworld.MT1('reach-v2', seed=0) # Construct the benchmark, sampling tasks
-#mt = metaworld.MT10() # Construct the benchmark, sampling tasks
+#mt = metaworld.MT1('reach-v2', seed=0) # Construct the benchmark, sampling tasks
+mt = metaworld.MT10() # Construct the benchmark, sampling tasks
 
 def create_metaworld():
     training_envs = []
