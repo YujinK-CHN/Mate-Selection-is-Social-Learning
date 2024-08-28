@@ -4,7 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from processing.batching import batchify, batchify_obs, unbatchify
-from loss.ppo_loss import clip_ppo_loss
 from policies.centralized_policy import CentralizedPolicy
 from policies.multitask_policy import MultiTaskPolicy
 

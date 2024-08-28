@@ -28,7 +28,9 @@ class SLE_MTPPO():
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
+        self.pop_gates = L0GateLayer1d(n_features=1024) # reset at each time evolve.
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-5)
+        self.opt_gate = optim.SGD(self.pop_gates.parameters(), lr=0.001, momentum=0.9)
 
         self.max_cycles = config['max_path_length']
         self.pop_size = config['pop_size']
