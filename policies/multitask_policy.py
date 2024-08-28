@@ -44,11 +44,9 @@ class MultiTaskPolicy(nn.Module):
         if self.continuous == False:
             action_dist = Categorical(probs=means)
         else:
-            if self.pop_size == 1:
-                cov_matrix = torch.diag(self.log_std).to(self.device)
-            else:
-                cov_matrix = torch.diag(self.log_std).unsqueeze(dim=0).to(self.device)
-            action_dist = MultivariateNormal(means, cov_matrix)
+            clamped_diagonal = torch.clamp(self.log_std, min=0.5, max=1.5)
+            clamped_cov_matrix = torch.diag_embed(clamped_diagonal) + (torch.diag(self.log_std) - torch.diag_embed(self.log_std)).to(self.device)
+            action_dist = MultivariateNormal(means, clamped_cov_matrix)
         
         actions = action_dist.sample()
         values = self.critic(x)
@@ -62,14 +60,10 @@ class MultiTaskPolicy(nn.Module):
         if self.continuous == False:
             action_dist = Categorical(probs=means)
         else:
-            if self.pop_size == 1:
-                action_var = self.log_std.expand_as(means)
-                cov_matrix = torch.diag_embed(action_var).to(self.device)
-            else:
-                action_var = self.log_std.expand_as(means)
-                cov_matrix = torch.diag_embed(action_var).unsqueeze(dim=0).to(self.device)
-                
-            action_dist = MultivariateNormal(means, cov_matrix)
+            action_var = self.log_std.expand_as(means)
+            clamped_diagonal = torch.clamp(self.log_std, min=0.5, max=1.5)
+            clamped_cov_matrix = torch.diag_embed(clamped_diagonal) + (torch.diag_embed(action_var) - torch.diag_embed(action_var)).to(self.device)
+            action_dist = MultivariateNormal(means, clamped_cov_matrix)
 
         values = self.critic(x)
         # print(self.shared_layers[2].weight.grad)
