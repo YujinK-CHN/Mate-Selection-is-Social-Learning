@@ -269,8 +269,8 @@ class SLE_MTPPO():
             y2.append(mean_eval_return)
             y3.append(success_tracker.overall_success_rate())
             if episode % 10 == 0:
-                plt.plot(x, y1)
-                plt.plot(x, y2)
+                #plt.plot(x, y1)
+                #plt.plot(x, y2)
                 plt.plot(x, y3)
                 plt.pause(0.05)
         plt.show()
