@@ -3,7 +3,6 @@ import torch.optim as optim
 import numpy as np
 
 from processing.batching import batchify, batchify_obs, unbatchify
-from loss.ppo_loss import clip_ppo_loss
 from policies.independent_policy import IndependentPolicy
 from policies.centralized_policy import CentralizedPolicy
 
