@@ -53,12 +53,12 @@ if __name__ == "__main__":
         'vf_coef': 0.1,
         'lr_clip_range': 0.2,
         'discount': 0.99,
-        'gae_lambda': 0.95,
-        'batch_size': 5000,
+        'gae_lambda': 0.97,
+        'batch_size': 100000,
         'max_path_length': 500,
         'min_batch': 32,
-        'epoch_opt': 256,
-        'total_episodes': 4000,
+        'epoch_opt': 16,
+        'total_episodes': 10000,
         'lr': 0.0005
     }
 
