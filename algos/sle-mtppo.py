@@ -100,14 +100,14 @@ class SLE_MTPPO():
             # after children born, use 250 eps for merging (train the gates).
             # then, compress the big student and finetune until next evolution.
             if episode % self.merging_period == 0 and self.merging == True:
-                for i, gate in enumerate(self.pop_gates):
-                    important_indices = gate.important_indices()
-                    self.policy.pop_actors[i] = nn.Sequential(
-                        compress_first_linear(self.policy.pop_actors[i][0], important_indices),
-                        compress_middle_linear(self.policy.pop_actors[i][1], torch.arange(self.hidden_size), important_indices),
-                        compress_final_linear(self.policy.pop_actors[i][-2], important_indices),
-                        nn.Softmax(dim=-1)
-                    )
+                important_indices = self.gate.important_indices()
+                self.policy.shared_layers = nn.Sequential(
+                    compress_first_linear(self.policy.shared_layers[0], important_indices),
+                    compress_middle_linear(self.policy.shared_layers[1], torch.arange(512), important_indices),
+                    nn.Tanh(),
+                    compress_final_linear(self.policy.shared_layers[-2], important_indices),
+                    nn.Tanh()
+                )
                 
                 self.merging = False # means merging is done -> start to finetune.
 
@@ -328,20 +328,17 @@ class SLE_MTPPO():
 
 
     def select(self, pop: torch.nn.ModuleList, fitness: np.array) -> torch.nn.ModuleList:
-        idx = np.random.choice(np.arange(self.n_agents), size=self.n_agents, p=fitness/fitness.sum())
-        new_pop = copy.deepcopy(pop)
-        for i, actor in enumerate(new_pop):
-            actor = pop[idx[i]]
-        return new_pop
+        return pop
 
 
     def crossover(self, parent1: torch.nn.Sequential, gate: nn.Module, parent2: torch.nn.Sequential) -> torch.nn.Sequential:
         child = nn.Sequential(
             concat_first_linear(parent1[0], parent2[0]),
             concat_middle_linear(parent1[1], parent2[1]),
+            nn.Tanh(),
             gate,
             concat_last_linear(parent1[-2], parent2[-2]),
-            nn.Softmax(dim=-1)
+            nn.Tanh(),
         )
         return child
 
