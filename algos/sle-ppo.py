@@ -38,7 +38,7 @@ class MultiTaskSuccessTracker:
         return total_successes / total_attempts
 
 
-class Ti_MTPPO():
+class SLE_MTPPO():
 
     def __init__(
             self,
@@ -48,7 +48,8 @@ class Ti_MTPPO():
         self.env = env
         self.obs_shape = env.observation_space.shape[0]
         self.device = config['device']
-        self.name = 'ti-mtppo'
+        self.name = 'sle-mtppo'
+
         self.policy = MultiTaskPolicy(
             pop_size = config['pop_size'], 
             env = env,
@@ -56,14 +57,22 @@ class Ti_MTPPO():
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
-        self.gate = L0GateLayer1d(n_features=1024) # reset at each time evolve.
-        self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-5)
-        self.opt_gate = optim.SGD(self.pop_gates.parameters(), lr=0.001, momentum=0.9)
-
-        self.pop = nn.ModuleList([
+        
+        self.pop_actors = nn.ModuleList([
                     copy.deepcopy(self.policy.shared_layers)
                     for _ in range(config['pop_size'])
                 ])
+        
+        # reset at each time evolve.
+        self.pop_gates = nn.ModuleList([
+                    L0GateLayer1d(n_features=1024)
+                    for _ in range(config['pop_size'])
+                ]) 
+        
+        self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-8)
+        self.opt_gate = optim.SGD(self.pop_gates.parameters(), lr=0.001, momentum=0.9)
+
+        
 
         self.max_cycles = config['max_path_length']
         self.pop_size = config['pop_size']
@@ -86,6 +95,56 @@ class Ti_MTPPO():
         self.merging = None
     
     """ TRAINING LOGIC """
+    def get_fitness(self, rewards: list) -> np.array:
+        return 0
+
+
+    def select(self, pop: torch.nn.ModuleList, fitness: np.array) -> torch.nn.ModuleList:
+        return 0
+
+
+    def crossover(self, parent1: torch.nn.Sequential, gate: nn.Module, parent2: torch.nn.Sequential) -> torch.nn.Sequential:
+        child = nn.Sequential(
+            concat_first_linear(parent1[0], parent2[0]),
+            concat_middle_linear(parent1[1], parent2[1]),
+            nn.Tanh(),
+            gate,
+            concat_last_linear(parent1[-2], parent2[-2]),
+            nn.Tanh()
+        )
+        return child
+
+
+    def mutate(self, child):
+        return child
+    
+
+    def evolve(self):
+        # Generations
+        for episode in range(self.total_episodes):
+            # reset gates.
+            self.pop_gates = nn.ModuleList([
+                L0GateLayer1d(n_features=1024)
+                for _ in range(self.pop_size)
+            ]) 
+
+            # fitness func / evaluation: currently using rewards as fitness for each individual
+            fitness = self.get_fitness(self.env, self.pop_actors)
+
+            # mate selection: for each actor in the pop, select one mate from the pop respect to the rule.
+            mates = self.select(self.pop_actors, fitness)
+
+            # for each individual,
+            for i, actor in enumerate(self.pop_actors):
+                # give a probability that crossover happens by merging two actors' networks.
+                child = self.crossover(actor, self.pop_gates[i], mates[i])
+                child = self.mutate(child)
+                self.pop_actors[i] = child
+            self.pop_actors = self.pop_actors.to(self.device)
+                    
+            self.merging = True  
+
+
 
     def train(self):
 
@@ -110,33 +169,6 @@ class Ti_MTPPO():
                 )
                 
                 self.merging = False # means merging is done -> start to finetune.
-
-            #################################### Genetic Algorithm ####################################
-            # evolve every _ eps. 
-            if episode % self.evolution_period == 0:
-                
-
-                # reset gates.
-                self.gate = L0GateLayer1d(n_features=1024)
-
-                # make kid: randomly mutate the main_charactor _ times and append those kids to population
-                self.pop = self.make_kid(self.policy.shared_layers)
-                
-                # fitness func / evaluation: currently using rewards as fitness for each agents
-                fitness = self.get_fitness(0)
-
-                # kill bad: only keep half pop (e.g. 6 -> pop_size=3) top fitness
-                self.pop = self.kill_bad(self.pop)
-
-                # mate selection
-                partner = self.select(self.pop, fitness)
-
-                # crossover
-                self.policy.shared_layers = self.crossover(self.policy.shared_layers, self.gate, partner)
-
-                # merging button: ON
-                self.merging = True
-            ###########################################################################################
 
             # clear memory
             rb_obs = torch.zeros((self.batch_size, self.obs_shape)).to(self.device)
@@ -309,40 +341,6 @@ class Ti_MTPPO():
 
     def save(self, path):
         torch.save(self.policy.state_dict(), path)
-
-
-    def make_kid(self, main_ch: torch.nn.Sequential) -> nn.ModuleList:
-        # mutation: randomly mutate the main_charactor _ times and append those kids to population
-        return self.pop
-    
-
-    def get_fitness(self, rewards: list) -> np.array:
-        # shift rewards to postive value.
-        min_reward = np.min(rewards)
-        shift_constant = np.abs(min_reward) + 1  # Shift to make the minimum reward 1
-        scaled_rewards = np.asarray([r + shift_constant for r in rewards], dtype=np.float32)
-        return scaled_rewards
-    
-    def kill_bad(self, pop: torch.nn.ModuleList):
-        return pop
-
-
-    def select(self, pop: torch.nn.ModuleList, fitness: np.array) -> torch.nn.ModuleList:
-        return pop
-
-
-    def crossover(self, parent1: torch.nn.Sequential, gate: nn.Module, parent2: torch.nn.Sequential) -> torch.nn.Sequential:
-        child = nn.Sequential(
-            concat_first_linear(parent1[0], parent2[0]),
-            concat_middle_linear(parent1[1], parent2[1]),
-            nn.Tanh(),
-            gate,
-            concat_last_linear(parent1[-2], parent2[-2]),
-            nn.Tanh(),
-        )
-        return child
-
-
 
 
     def train_merging_stage(
