@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from itertools import chain
 from torch.distributions.categorical import Categorical
 from torch.distributions.multivariate_normal import MultivariateNormal
 
@@ -15,10 +16,8 @@ class MultiTaskPolicy(nn.Module):
 
         self.shared_layers = nn.Sequential(
             nn.Linear(env.observation_space.shape[0], 512),
-            nn.Linear(512, 512),
             nn.Tanh(),
             nn.Linear(512, env.action_space.shape[0]),
-            nn.Tanh(),
         )
         '''
         self.task_heads = nn.ModuleList([
@@ -31,7 +30,6 @@ class MultiTaskPolicy(nn.Module):
         '''
         self.critic = nn.Sequential(
             nn.Linear(env.observation_space.shape[0], 512),
-            nn.Linear(512, 512),
             nn.Tanh(),
             nn.Linear(512, 1)
         )
@@ -69,5 +67,9 @@ class MultiTaskPolicy(nn.Module):
         # print(self.shared_layers[2].weight.grad)
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
 
-    
+    def gate_parameters(self):
+        return self.shared_layers[2].parameters()
+
+    def non_gate_parameters(self):
+        return chain(self.shared_layers[0].parameters(), self.shared_layers[-1].parameters())
 

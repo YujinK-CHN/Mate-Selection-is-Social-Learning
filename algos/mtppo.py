@@ -207,20 +207,6 @@ class MTPPO():
                     entropy_loss = entropy.max()
                     loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
 
-                    '''
-                    loss = clip_ppo_loss(
-                        newlogprob,
-                        entropy,
-                        value,
-                        b_values[batch_index],
-                        b_logprobs[batch_index],
-                        b_advantages[batch_index],
-                        b_returns[batch_index],
-                        self.clip_coef,
-                        self.ent_coef,
-                        self.vf_coef
-                    )
-                    '''
                     self.opt.zero_grad()
                     loss.backward()
                     self.opt.step()
