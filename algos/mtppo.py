@@ -7,6 +7,32 @@ from processing.batching import batchify, batchify_obs, unbatchify
 from policies.centralized_policy import CentralizedPolicy
 from policies.multitask_policy import MultiTaskPolicy
 
+class MultiTaskSuccessTracker:
+    def __init__(self, num_tasks):
+        self.num_tasks = num_tasks
+        self.success_counts = [0] * num_tasks
+        self.total_counts = [0] * num_tasks
+
+    def update(self, task_id, success):
+        """Update success counts based on task_id."""
+        self.total_counts[task_id] += 1
+        if success:
+            self.success_counts[task_id] += 1
+
+    def task_success_rate(self, task_id):
+        """Calculate success rate for a specific task."""
+        if self.total_counts[task_id] == 0:
+            return 0.0
+        return self.success_counts[task_id] / self.total_counts[task_id]
+
+    def overall_success_rate(self):
+        """Calculate the overall success rate across all tasks."""
+        total_successes = sum(self.success_counts)
+        total_attempts = sum(self.total_counts)
+        if total_attempts == 0:
+            return 0.0
+        return total_successes / total_attempts
+    
 class MTPPO():
 
     def __init__(
@@ -41,7 +67,7 @@ class MTPPO():
         self.continuous = config['continuous']
     
     """ TRAINING LOGIC """
-
+    
     def train(self):
 
         y1 = []
@@ -257,28 +283,3 @@ class MTPPO():
         torch.save(self.policy.state_dict(), path)
 
 
-class MultiTaskSuccessTracker:
-    def __init__(self, num_tasks):
-        self.num_tasks = num_tasks
-        self.success_counts = [0] * num_tasks
-        self.total_counts = [0] * num_tasks
-
-    def update(self, task_id, success):
-        """Update success counts based on task_id."""
-        self.total_counts[task_id] += 1
-        if success:
-            self.success_counts[task_id] += 1
-
-    def task_success_rate(self, task_id):
-        """Calculate success rate for a specific task."""
-        if self.total_counts[task_id] == 0:
-            return 0.0
-        return self.success_counts[task_id] / self.total_counts[task_id]
-
-    def overall_success_rate(self):
-        """Calculate the overall success rate across all tasks."""
-        total_successes = sum(self.success_counts)
-        total_attempts = sum(self.total_counts)
-        if total_attempts == 0:
-            return 0.0
-        return total_successes / total_attempts

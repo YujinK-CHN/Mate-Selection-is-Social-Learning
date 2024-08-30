@@ -38,7 +38,7 @@ class MultiTaskSuccessTracker:
         return total_successes / total_attempts
 
 
-class SLE_MTPPO():
+class Ti_MTPPO():
 
     def __init__(
             self,
