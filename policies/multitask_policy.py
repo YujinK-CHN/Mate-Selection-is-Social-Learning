@@ -29,7 +29,7 @@ class MultiTaskPolicy(nn.Module):
         ])
         '''
         self.critic = nn.Sequential(
-            nn.Linear(env.observation_space.shape[0], 512),
+            nn.Linear(env.observation_space.shape[0]+num_tasks, 512),
             nn.Tanh(),
             nn.Linear(512, 1)
         )
