@@ -84,8 +84,42 @@ class SLE_MTPPO():
         self.merging = None
     
     """ TRAINING LOGIC """
-    def get_fitness(self, rewards: list) -> np.array:
-        return 0
+    def get_fitness(self, pop: list) -> torch.FloatTensor:
+        policies_fitness = []
+        for policy in pop:
+            task_returns = []
+            success_tracker_eval = MultiTaskSuccessTracker(len(self.env.tasks))
+            policy.eval()
+            with torch.no_grad():
+                for task in self.env.tasks:
+                    # render 5 episodes out
+                    episodic_return = []
+                    for episode in range(5):
+                        next_obs, infos = self.env.reset()
+                        task_id = self.env.tasks.index(self.env.current_task)
+                        terms = False
+                        truncs = False
+                        step_return = 0
+                        while not terms and not truncs:
+                            # rollover the observation 
+                            #obs = batchify_obs(next_obs, self.device)
+                            obs = torch.FloatTensor(next_obs).to(self.device)
+
+                            # get actions from skills
+                            actions, logprobs, entropy, values = policy.act(obs, task_id)
+
+                            # execute the environment and log data
+                            next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
+                            success = infos.get('success', False)
+                            success_tracker_eval.update(task_id, success)
+                            terms = terms
+                            truncs = truncs
+                            step_return += rewards
+                        episodic_return.append(step_return)
+                    task_returns.append(np.mean(episodic_return))
+        policies_fitness.append(task_returns)
+            
+        return torch.FloatTensor(policies_fitness)
 
 
     def select(self, pop: torch.nn.ModuleList, fitness: np.array) -> torch.nn.ModuleList:
@@ -115,7 +149,7 @@ class SLE_MTPPO():
             pop = copy.deepcopy(self.pop)
 
             # fitness func / evaluation: currently using rewards as fitness for each individual
-            fitness, mean_success_rate = self.get_fitness(self.env, pop)
+            fitness, mean_success_rate = self.get_fitness(pop)
             print(f"Training episode {episode}")
             print(f"Evaluation return: {fitness}")
             print(f"Evaluation success rate: {mean_success_rate}")
@@ -200,6 +234,7 @@ class SLE_MTPPO():
                 # collect observations and convert to batch of torch tensors
                 next_obs, info = env.reset()
                 task_id = env.tasks.index(env.current_task)
+                one_hot_id = torch.zeros(len(env.tasks))[task_id]
 
                 step_return = 0
                     
@@ -210,7 +245,7 @@ class SLE_MTPPO():
                     obs = torch.FloatTensor(next_obs).to(self.device)
 
                     # get actions from skills
-                    actions, logprobs, entropy, values = policy.act(obs, task_id)
+                    actions, logprobs, entropy, values = policy.act(torch.concatenate((obs, one_hot_id), dim=-1))
 
                     # execute the environment and log data
                     next_obs, rewards, terms, truncs, infos = env.step(actions.cpu().numpy())

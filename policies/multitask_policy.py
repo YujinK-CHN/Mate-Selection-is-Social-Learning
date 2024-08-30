@@ -35,7 +35,7 @@ class MultiTaskPolicy(nn.Module):
         )
         
 
-    def act(self, x, task_id):
+    def act(self, x):
         means = self.shared_layers(x)
         # action_probs = self.task_heads[task_id](latent)
 
@@ -51,7 +51,7 @@ class MultiTaskPolicy(nn.Module):
 
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
-    def evaluate(self, x, task_id, actions):
+    def evaluate(self, x, actions):
         means = self.shared_layers(x)
         #action_probs = self.task_heads[task_id](latent)
 
