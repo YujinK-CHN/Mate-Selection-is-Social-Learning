@@ -101,7 +101,6 @@ class MTPPO():
                     next_obs, info = self.env.reset()
                     task_id = self.env.tasks.index(self.env.current_task)
                     one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[task_id].to(self.device)
-                    print(one_hot_id)
 
                     step_return = 0
                     
