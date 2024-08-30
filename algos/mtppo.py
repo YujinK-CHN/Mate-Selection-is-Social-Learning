@@ -108,10 +108,11 @@ class MTPPO():
                     for step in range(0, self.max_cycles):
                         # rollover the observation 
                         #obs = batchify_obs(next_obs, self.device)
-                        obs = torch.FloatTensor(next_obs).to(self.device)
+                        obs = torch.FloatTensor(next_obs)
+                        obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                         # get actions from skills
-                        actions, logprobs, entropy, values = self.policy.act(torch.concatenate((obs, one_hot_id), dim=-1))
+                        actions, logprobs, entropy, values = self.policy.act(obs)
 
                         # execute the environment and log data
                         next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
