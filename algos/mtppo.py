@@ -78,7 +78,7 @@ class MTPPO():
         for episode in range(self.total_episodes): # 4000
             self.policy.train()
             # clear memory
-            rb_obs = torch.zeros((self.batch_size, self.obs_shape)).to(self.device)
+            rb_obs = torch.zeros((self.batch_size, self.obs_shape + len(self.env.tasks))).to(self.device)
             if self.continuous == True:
                 rb_actions = torch.zeros((self.batch_size, self.env.action_space.shape[0])).to(self.device)
             else:
@@ -100,6 +100,8 @@ class MTPPO():
                     # collect observations and convert to batch of torch tensors
                     next_obs, info = self.env.reset()
                     task_id = self.env.tasks.index(self.env.current_task)
+                    one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[task_id].to(self.device)
+                    print(one_hot_id)
 
                     step_return = 0
                     
@@ -110,7 +112,7 @@ class MTPPO():
                         obs = torch.FloatTensor(next_obs).to(self.device)
 
                         # get actions from skills
-                        actions, logprobs, entropy, values = self.policy.act(obs, task_id)
+                        actions, logprobs, entropy, values = self.policy.act(torch.concatenate((obs, one_hot_id), dim=-1))
 
                         # execute the environment and log data
                         next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())

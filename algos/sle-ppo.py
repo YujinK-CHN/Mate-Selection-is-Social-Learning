@@ -122,7 +122,7 @@ class SLE_MTPPO():
         return torch.FloatTensor(policies_fitness)
 
 
-    def select(self, pop: torch.nn.ModuleList, fitness: np.array) -> torch.nn.ModuleList:
+    def select(self, pop: list, fitness: np.array) -> torch.nn.ModuleList:
         return 0
 
 
@@ -211,7 +211,7 @@ class SLE_MTPPO():
         opt_gate = optim.SGD(policy.gate_parameters(), lr=0.001, momentum=0.9)
         alpha = 0.01
 
-        rb_obs = torch.zeros((self.batch_size, self.obs_shape)).to(self.device)
+        rb_obs = torch.zeros((self.batch_size, self.obs_shape + len(env.tasks))).to(self.device)
         if self.continuous == True:
             rb_actions = torch.zeros((self.batch_size, env.action_space.shape[0])).to(self.device)
         else:
@@ -234,7 +234,7 @@ class SLE_MTPPO():
                 # collect observations and convert to batch of torch tensors
                 next_obs, info = env.reset()
                 task_id = env.tasks.index(env.current_task)
-                one_hot_id = torch.zeros(len(env.tasks))[task_id]
+                one_hot_id = torch.diag(torch.ones(len(env.tasks)))[task_id].to(self.device)
 
                 step_return = 0
                     
@@ -353,7 +353,7 @@ class SLE_MTPPO():
         policy = copy.deepcopy(policy)
         opt = optim.Adam(policy.parameters(), lr=self.lr, eps=1e-8)
 
-        rb_obs = torch.zeros((self.batch_size, self.obs_shape)).to(self.device)
+        rb_obs = torch.zeros((self.batch_size, self.obs_shape + len(env.tasks))).to(self.device)
         if self.continuous == True:
             rb_actions = torch.zeros((self.batch_size, env.action_space.shape[0])).to(self.device)
         else:
@@ -376,6 +376,7 @@ class SLE_MTPPO():
                 # collect observations and convert to batch of torch tensors
                 next_obs, info = env.reset()
                 task_id = env.tasks.index(env.current_task)
+                one_hot_id = torch.diag(torch.ones(len(env.tasks)))[task_id].to(self.device)
 
                 step_return = 0
                     
@@ -386,7 +387,7 @@ class SLE_MTPPO():
                     obs = torch.FloatTensor(next_obs).to(self.device)
 
                     # get actions from skills
-                    actions, logprobs, entropy, values = policy.act(obs, task_id)
+                    actions, logprobs, entropy, values = policy.act(torch.concatenate((obs, one_hot_id), dim=-1))
 
                     # execute the environment and log data
                     next_obs, rewards, terms, truncs, infos = env.step(actions.cpu().numpy())
