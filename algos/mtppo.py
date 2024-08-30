@@ -244,16 +244,18 @@ class MTPPO():
             for episode in range(5):
                 next_obs, infos = self.env.reset()
                 task_id = self.env.tasks.index(self.env.current_task)
+                one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[task_id]
                 terms = False
                 truncs = False
                 step_return = 0
                 while not terms and not truncs:
                     # rollover the observation 
                     #obs = batchify_obs(next_obs, self.device)
-                    obs = torch.FloatTensor(next_obs).to(self.device)
+                    obs = torch.FloatTensor(next_obs)
+                    obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                     # get actions from skills
-                    actions, logprobs, entropy, values = self.policy.act(obs, task_id)
+                    actions, logprobs, entropy, values = self.policy.act(obs)
 
                     # execute the environment and log data
                     next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
