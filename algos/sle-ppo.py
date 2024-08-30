@@ -301,7 +301,6 @@ class SLE_MTPPO():
                     old_actions = rb_actions.long()[batch_index, :]
                 _, newlogprob, entropy, values = policy.evaluate(
                     x = rb_obs[batch_index, :],
-                    task_id = task_id,
                     actions = old_actions
                 )
                         
@@ -442,7 +441,6 @@ class SLE_MTPPO():
                     old_actions = rb_actions.long()[batch_index, :]
                 _, newlogprob, entropy, values = policy.evaluate(
                     x = rb_obs[batch_index, :],
-                    task_id = task_id,
                     actions = old_actions
                 )
                         
