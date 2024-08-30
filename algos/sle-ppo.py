@@ -234,7 +234,7 @@ class SLE_MTPPO():
                 # collect observations and convert to batch of torch tensors
                 next_obs, info = env.reset()
                 task_id = env.tasks.index(env.current_task)
-                one_hot_id = torch.diag(torch.ones(len(env.tasks)))[task_id].to(self.device)
+                one_hot_id = torch.diag(torch.ones(len(env.tasks)))[task_id]
 
                 step_return = 0
                     
@@ -376,7 +376,7 @@ class SLE_MTPPO():
                 # collect observations and convert to batch of torch tensors
                 next_obs, info = env.reset()
                 task_id = env.tasks.index(env.current_task)
-                one_hot_id = torch.diag(torch.ones(len(env.tasks)))[task_id].to(self.device)
+                one_hot_id = torch.diag(torch.ones(len(env.tasks)))[task_id]
 
                 step_return = 0
                     
