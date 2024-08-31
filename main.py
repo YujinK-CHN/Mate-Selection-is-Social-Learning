@@ -51,8 +51,8 @@ if __name__ == "__main__":
         'batch_size': 5000,
         'max_path_length': 500,
         'min_batch': 32,
-        'epoch_opt': 256,
-        'total_episodes': 4000,
+        'epoch_opt': 4,
+        'total_episodes': 3,
         'hidden_size': 128,
         'lr': 0.0005
     }
@@ -68,19 +68,29 @@ if __name__ == "__main__":
     mtppo3 = MTPPO(multi_task_env, 100, config)
     seeds = [mtppo1, mtppo2, mtppo3]
 
-    with mp.Pool(processes=16) as pool:
+    try:
+        pool = mp.Pool()
         process_inputs = [(config, seeds[i]) for i in range(3)]
         results = pool.starmap(training, process_inputs)
+        pool.close()  # Close the pool to prevent new tasks from being submitted
+        pool.join()   # Wait for all worker processes to finish
 
-    seeds_episodic_x = [res[0] for res in results]  # receive from multi-process
-    seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
+        seeds_episodic_x = [res[0] for res in results]  # receive from multi-process
+        seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
 
-    x = seeds_episodic_x[0]
-    y = np.mean(np.asarray(seeds_episodic_return), axis=0)
+        x = seeds_episodic_x[0]
+        y = np.mean(np.asarray(seeds_episodic_return), axis=0)
 
-    plt.plot(x, y)
-    plt.show()
-
-
+        plt.plot(x, y)
+        plt.show()
+    except KeyboardInterrupt:
+        print("Main process interrupted, terminating workers...")
+        pool.terminate()  # Terminate all workers immediately
+        pool.join()       # Wait for the workers to terminate
+        print("All workers terminated.")
+    finally:
+        pool.close()  # Close the pool to prevent new tasks from being submitted
+        pool.join()   # Wait for all worker processes to finish
+    
     # training(config, sle)
     
