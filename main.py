@@ -3,13 +3,14 @@ import random
 import torch
 import numpy as np
 import multiprocess as mp
+import matplotlib.pyplot as plt
 from pipline.train import training
 from algos.ppo import PPO
 from algos.ippo import IPPO
 from algos.mappo import MAPPO
 from algos.gippo import GIPPO
 from algos.mtppo import MTPPO
-
+from algos.sle_ppo import SLE_MTPPO
 # ,render_mode="human"
 def create_multitask_env():
     env1 = gym.make("Walker2d-v5")
@@ -41,7 +42,7 @@ if __name__ == "__main__":
     config = {
         'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         'continuous': True,
-        'pop_size': 1,
+        'pop_size': 8,
         'ent_coef': 5e-3,
         'vf_coef': 0.1,
         'lr_clip_range': 0.2,
@@ -61,6 +62,7 @@ if __name__ == "__main__":
     multi_task_env = MultiTaskEnv(create_multitask_env())
 
     """ ALGO SETUP """
+    sle = SLE_MTPPO(multi_task_env, config)
     mtppo1 = MTPPO(multi_task_env, 0, config)
     mtppo2 = MTPPO(multi_task_env, 42, config)
     mtppo3 = MTPPO(multi_task_env, 100, config)
@@ -73,7 +75,12 @@ if __name__ == "__main__":
     seeds_episodic_x = [res[0] for res in results]  # receive from multi-process
     seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
 
+    x = seeds_episodic_x[0]
+    y = np.mean(np.asarray(seeds_episodic_return), axis=0)
+
+    plt.plot(x, y)
+    plt.show()
 
 
-    # training(config, mtppo)
+    # training(config, sle)
     
