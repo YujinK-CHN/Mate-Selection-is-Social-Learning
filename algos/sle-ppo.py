@@ -118,13 +118,14 @@ class SLE_MTPPO():
                             step_return += rewards
                         episodic_return.append(step_return)
                     task_returns.append(np.mean(episodic_return))
-        policies_fitness.append(task_returns)
+            policies_fitness.append(task_returns)
             
         return torch.FloatTensor(policies_fitness)
 
 
-    def select(self, pop: list, fitness: np.array) -> torch.nn.ModuleList:
-        return 0
+    def select(self, pop: list, fitness: np.array):
+
+        return mates, mate_indices
 
 
     def crossover(self, parent1: torch.nn.Sequential, parent2: torch.nn.Sequential) -> torch.nn.Sequential:
@@ -171,7 +172,7 @@ class SLE_MTPPO():
             for i, policy in enumerate(pop):
                 # give a probability that crossover happens by merging two actors' networks.
                 child = self.crossover(policy.shared_layers, mates[i].shared_layers)
-                child = self.mutate(child)
+                child = self.mutate(child, self.mutation_mean, self.mutation_std)
                 self.pop[i].shared_layers = child
                 
             ################################ Training ##################################
