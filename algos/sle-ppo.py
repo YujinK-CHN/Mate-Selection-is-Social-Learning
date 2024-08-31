@@ -9,7 +9,6 @@ import copy
 from processing.batching import batchify, batchify_obs, unbatchify
 from processing.l0module import L0GateLayer1d, concat_first_linear, concat_middle_linear, concat_last_linear,  \
     compress_first_linear, compress_middle_linear, compress_final_linear
-from policies.centralized_policy import CentralizedPolicy
 from policies.multitask_policy import MultiTaskPolicy
 
 class MultiTaskSuccessTracker:
@@ -66,7 +65,7 @@ class SLE_MTPPO():
 
         self.max_cycles = config['max_path_length']
         self.pop_size = config['pop_size']
-        self.total_episodes = config['total_episodes']
+        self.total_episodes = config['total_episodes'] # n_generations
         self.epoch_opt = config['epoch_opt']
         self.batch_size = config['batch_size']
         self.min_batch = config['min_batch']
@@ -80,8 +79,8 @@ class SLE_MTPPO():
 
         # GA hyperparameters
         self.mutation_rate = 0.003
-        self.evolution_period = 2000
-        self.merging_period = 250
+        self.mutation_mean = 0.0
+        self.mutation_std = 0.01
         self.fitness = None
     
     """ TRAINING LOGIC """
@@ -138,7 +137,14 @@ class SLE_MTPPO():
         return child
 
 
-    def mutate(self, child):
+    def mutate(self, child, mean=0.0, std=0.01):
+        if np.random.rand() < self.mutation_rate:
+            for module in child.modules():
+                if isinstance(module, nn.Linear) or isinstance(module, nn.Conv2d):
+                    with torch.no_grad():
+                        module.weight.add_(torch.randn(module.weight.size()) * std + mean)
+                        if module.bias is not None:
+                            module.bias.add_(torch.randn(module.bias.size()) * std + mean)
         return child
     
 
