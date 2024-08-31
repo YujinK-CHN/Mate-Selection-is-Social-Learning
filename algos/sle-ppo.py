@@ -125,8 +125,12 @@ class SLE_MTPPO():
 
 
     def select(self, pop: list, fitness: np.array):
-
-        return mates, mate_indices
+        mates = []
+        individual_total_fitness = torch.sum(fitness, dim=-1)
+        idx = np.random.choice(np.arange(self.pop_size), size=self.pop_size, p=individual_total_fitness/individual_total_fitness.sum())
+        for i in idx:
+            mates.append(pop[i])
+        return mates, idx
 
 
     def crossover(self, parent1: torch.nn.Sequential, parent2: torch.nn.Sequential) -> torch.nn.Sequential:

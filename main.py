@@ -2,6 +2,7 @@ import gymnasium as gym
 import random
 import torch
 import numpy as np
+import multiprocess as mp
 from pipline.train import training
 from algos.ppo import PPO
 from algos.ippo import IPPO
@@ -60,6 +61,19 @@ if __name__ == "__main__":
     multi_task_env = MultiTaskEnv(create_multitask_env())
 
     """ ALGO SETUP """
-    mtppo = MTPPO(multi_task_env, config)
-    training(config, algo_list=[mtppo])
+    mtppo1 = MTPPO(multi_task_env, 0, config)
+    mtppo2 = MTPPO(multi_task_env, 42, config)
+    mtppo3 = MTPPO(multi_task_env, 100, config)
+    seeds = [mtppo1, mtppo2, mtppo3]
+
+    with mp.Pool(processes=16) as pool:
+        process_inputs = [(config, seeds[i]) for i in range(3)]
+        results = pool.starmap(training, process_inputs)
+
+    seeds_episodic_x = [res[0] for res in results]  # receive from multi-process
+    seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
+
+
+
+    # training(config, mtppo)
     

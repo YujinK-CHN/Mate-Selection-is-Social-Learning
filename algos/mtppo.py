@@ -38,9 +38,11 @@ class MTPPO():
     def __init__(
             self,
             env,
+            seed,
             config
     ):
         self.env = env
+        self.seed = seed
         self.obs_shape = env.observation_space.shape[0]
         self.device = config['device']
         self.name = 'mtppo'
@@ -98,7 +100,7 @@ class MTPPO():
                 for i, task in enumerate(self.env.tasks): # 10
                     episodic_return = []
                     for epoch in range(int((self.batch_size / len(self.env.tasks)) / self.max_cycles)): # 10
-                        next_obs, infos = task.reset(seed=0)
+                        next_obs, infos = task.reset(seed=self.seed)
                         one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
                         step_return = 0
                         for step in range(0, self.max_cycles): # 500
@@ -228,6 +230,7 @@ class MTPPO():
                 #plt.plot(x, y3)
                 plt.pause(0.05)
         plt.show()
+        return (x, y1)
         
 
     def eval(self):
