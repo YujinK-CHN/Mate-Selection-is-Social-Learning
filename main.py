@@ -13,14 +13,14 @@ import random
 #mt = metaworld.MT1('reach-v2', seed=0) # Construct the benchmark, sampling tasks
 mt = metaworld.MT10() # Construct the benchmark, sampling tasks
 
-def create_metaworld():
+def create_metaworld(seed):
     training_envs = []
     for name, env_cls in mt.train_classes.items():
         env = env_cls()
         task = random.choice([task for task in mt.train_tasks
                                 if task.env_name == name])
         env.set_task(task)
-        env.seed(0)
+        env.seed(seed)
         training_envs.append(env)
     return training_envs
 
@@ -66,7 +66,9 @@ if __name__ == "__main__":
 
     """ ENV SETUP """
     print(create_metaworld())
-    multi_task_env = MultiTaskEnv(create_metaworld())
+    multi_task_env_0 = MultiTaskEnv(create_metaworld(0))
+    multi_task_env_42 = MultiTaskEnv(create_metaworld(42))
+    multi_task_env_100 = MultiTaskEnv(create_metaworld(100))
 
     """ ALGO SETUP """
     mtppo = MTPPO(multi_task_env, config)
