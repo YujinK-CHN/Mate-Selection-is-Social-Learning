@@ -44,10 +44,10 @@ class MTPPO():
         self.obs_shape = env.observation_space.shape[0]
         self.device = config['device']
         self.name = 'mtppo'
-        self.policy = MultiTaskPolicy(
-            pop_size = config['pop_size'], 
+        self.policy = MultiTaskPolicy( 
             env = env,
             num_tasks = len(env.tasks),
+            hidden_size=512,
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
