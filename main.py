@@ -1,5 +1,7 @@
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
+import multiprocess as mp
 from pipline.train import training
 from algos.ppo import PPO
 from algos.ippo import IPPO
@@ -49,7 +51,7 @@ if __name__ == "__main__":
     config = {
         'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         'continuous': True,
-        'pop_size': 1,
+        'pop_size': 8,
         'ent_coef': 5e-3,
         'vf_coef': 0.1,
         'lr_clip_range': 0.2,
@@ -71,6 +73,24 @@ if __name__ == "__main__":
     multi_task_env_100 = MultiTaskEnv(create_metaworld(100))
 
     """ ALGO SETUP """
-    mtppo = MTPPO(multi_task_env, config)
-    training(config, algo_list=[mtppo])
+    mtppo1 = MTPPO(multi_task_env_0, config)
+    mtppo2 = MTPPO(multi_task_env_42, config)
+    mtppo3 = MTPPO(multi_task_env_100, config)
+    seeds = [mtppo1, mtppo2, mtppo3]
+
+    with mp.Pool(processes=16) as pool:
+        process_inputs = [(config, seeds[i]) for i in range(3)]
+        results = pool.starmap(training, process_inputs)
+
+    seeds_episodic_x = [res[0] for res in results]  # receive from multi-process
+    seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
+
+    x = seeds_episodic_x[0]
+    y = np.mean(np.asarray(seeds_episodic_return), axis=0)
+
+    plt.plot(x, y)
+    plt.show()
+
+
+    # training(config, sle)
     
