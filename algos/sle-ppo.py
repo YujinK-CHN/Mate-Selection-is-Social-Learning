@@ -49,12 +49,13 @@ class SLE_MTPPO():
         self.obs_shape = env.observation_space.shape[0]
         self.device = config['device']
         self.name = 'sle-mtppo'
-
+        self.hidden_size = config['hidden_size']
+        
         self.pop = [
             MultiTaskPolicy(
-                pop_size = config['pop_size'], 
                 env = env,
                 num_tasks = len(env.tasks),
+                hidden_size = config['hidden_size'],
                 continuous = config['continuous'],
                 device = config['device']
             ).to(config['device'])
@@ -132,7 +133,7 @@ class SLE_MTPPO():
         child = nn.Sequential(
             concat_first_linear(parent1[0], parent2[0]),
             nn.Tanh(),
-            L0GateLayer1d(n_features=1024),
+            L0GateLayer1d(n_features=self.hidden_size*2),
             concat_last_linear(parent1[-1], parent2[-1]),
         )
         return child

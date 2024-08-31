@@ -51,6 +51,7 @@ if __name__ == "__main__":
         'min_batch': 32,
         'epoch_opt': 8,
         'total_episodes': 4000,
+        'hidden_size': 512,
         'lr': 0.0005
     }
 
