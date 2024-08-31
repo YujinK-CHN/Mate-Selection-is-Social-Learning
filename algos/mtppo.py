@@ -227,8 +227,9 @@ class MTPPO():
                 plt.plot(x, y2)
                 #plt.plot(x, y3)
                 plt.pause(0.05)
-        plt.show()
-        return (x,y1)
+        plt.show(block=False)
+        
+        return x, y1
         
 
     def eval(self):

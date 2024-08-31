@@ -178,9 +178,9 @@ class SLE_MTPPO():
                 
             ################################ Training ##################################
             env = [copy.deepcopy(self.env) for _ in range(self.pop_size)]
-            with mp.Pool(processes=16) as pool:
-                process_inputs = [(env[i], self.pop[i]) for i in range(self.pop_size)]
-                results = pool.starmap(self.train, process_inputs)
+            pool = mp.Pool()
+            process_inputs = [(env[i], self.pop[i]) for i in range(self.pop_size)]
+            results = pool.starmap(self.train, process_inputs)
 
             self.pop = [res[0] for res in results] # receive from multi-process
             seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
@@ -216,7 +216,7 @@ class SLE_MTPPO():
 
         policy, mean_episodic_return, episodic_success_rate, loss = self.train_finetune_stage(env, policy)
                 
-        return (policy, mean_episodic_return, episodic_success_rate, loss) # a tuple of 4
+        return policy, mean_episodic_return, episodic_success_rate, loss # a tuple of 4
                 
 
     def train_merging_stage(self, env, policy):
