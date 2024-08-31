@@ -8,6 +8,7 @@ from algos.ippo import IPPO
 from algos.mappo import MAPPO
 from algos.gippo import GIPPO
 from algos.mtppo import MTPPO
+from algos.sle_ppo import SLE_MTPPO
 
 import metaworld
 import random
@@ -73,6 +74,7 @@ if __name__ == "__main__":
     multi_task_env_100 = MultiTaskEnv(create_metaworld(100))
 
     """ ALGO SETUP """
+    sle = SLE_MTPPO(multi_task_env_0, config)
     mtppo1 = MTPPO(multi_task_env_0, config)
     mtppo2 = MTPPO(multi_task_env_42, config)
     mtppo3 = MTPPO(multi_task_env_100, config)
