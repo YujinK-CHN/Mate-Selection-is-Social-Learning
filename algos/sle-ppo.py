@@ -139,7 +139,14 @@ class SLE_MTPPO():
         return child
 
 
-    def mutate(self, child):
+    def mutate(self, child, mean=0.0, std=0.01):
+        if np.random.rand() < self.mutation_rate:
+            for module in child.modules():
+                if isinstance(module, nn.Linear) or isinstance(module, nn.Conv2d):
+                    with torch.no_grad():
+                        module.weight.add_(torch.randn(module.weight.size()) * std + mean)
+                        if module.bias is not None:
+                            module.bias.add_(torch.randn(module.bias.size()) * std + mean)
         return child
     
 
@@ -166,7 +173,7 @@ class SLE_MTPPO():
             for i, policy in enumerate(pop):
                 # give a probability that crossover happens by merging two actors' networks.
                 child = self.crossover(policy.shared_layers, mates[i].shared_layers)
-                child = self.mutate(child)
+                child = self.mutate(child, self.mutation_mean, self.mutation_std)
                 self.pop[i].shared_layers = child
                 
             ################################ Training ##################################
