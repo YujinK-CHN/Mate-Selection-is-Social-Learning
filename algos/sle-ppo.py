@@ -81,8 +81,8 @@ class SLE_MTPPO():
 
         # GA hyperparameters
         self.mutation_rate = 0.003
-        self.evolution_period = 2000
-        self.merging_period = 250
+        self.mutation_mean = 0.0
+        self.mutation_std = 0.01
         self.fitness = None
     
     """ TRAINING LOGIC """
