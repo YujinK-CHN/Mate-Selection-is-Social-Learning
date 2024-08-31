@@ -50,12 +50,13 @@ class SLE_MTPPO():
         self.obs_shape = env.observation_space.shape[0]
         self.device = config['device']
         self.name = 'sle-mtppo'
+        self.hidden_size = config['hidden_size']
 
         self.pop = [
             MultiTaskPolicy(
-                pop_size = config['pop_size'], 
                 env = env,
                 num_tasks = len(env.tasks),
+                hidden_size = config['hidden_size'],
                 continuous = config['continuous'],
                 device = config['device']
             ).to(config['device'])

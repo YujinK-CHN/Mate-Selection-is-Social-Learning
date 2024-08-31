@@ -6,18 +6,17 @@ from torch.distributions.categorical import Categorical
 from torch.distributions.multivariate_normal import MultivariateNormal
 
 class MultiTaskPolicy(nn.Module):
-    def __init__(self, pop_size, env, num_tasks, continuous, device):
+    def __init__(self, env, num_tasks, hidden_size, continuous, device):
         super(MultiTaskPolicy, self).__init__()
         self.env = env
-        self.pop_size = pop_size
         self.continuous = continuous
         self.device = device
         self.log_std = nn.Parameter(torch.full((env.action_space.shape[0],), 1.0))
 
         self.shared_layers = nn.Sequential(
-            nn.Linear(env.observation_space.shape[0]+num_tasks, 512),
+            nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size),
             nn.Tanh(),
-            nn.Linear(512, env.action_space.shape[0]),
+            nn.Linear(hidden_size, env.action_space.shape[0]),
         )
         '''
         self.task_heads = nn.ModuleList([
@@ -29,9 +28,9 @@ class MultiTaskPolicy(nn.Module):
         ])
         '''
         self.critic = nn.Sequential(
-            nn.Linear(env.observation_space.shape[0]+num_tasks, 512),
+            nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size),
             nn.Tanh(),
-            nn.Linear(512, 1)
+            nn.Linear(hidden_size, 1)
         )
         
 
