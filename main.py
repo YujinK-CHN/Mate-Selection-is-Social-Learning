@@ -1,3 +1,5 @@
+import gymnasium as gym
+import random
 import torch
 import numpy as np
 from pipline.train import training
@@ -7,22 +9,11 @@ from algos.mappo import MAPPO
 from algos.gippo import GIPPO
 from algos.mtppo import MTPPO
 
-import metaworld
-import random
-
-#mt = metaworld.MT1('reach-v2', seed=0) # Construct the benchmark, sampling tasks
-mt = metaworld.MT10() # Construct the benchmark, sampling tasks
-
-def create_metaworld():
-    training_envs = []
-    for name, env_cls in mt.train_classes.items():
-        env = env_cls()
-        task = random.choice([task for task in mt.train_tasks
-                                if task.env_name == name])
-        env.set_task(task)
-        env.seed(0)
-        training_envs.append(env)
-    return training_envs
+# ,render_mode="human"
+def create_multitask_env():
+    env1 = gym.make("Walker2d-v5")
+    env2 = gym.make("HalfCheetah-v5")
+    return [env1] #, env2]
 
 
 class MultiTaskEnv():
@@ -64,8 +55,8 @@ if __name__ == "__main__":
     }
 
     """ ENV SETUP """
-    print(create_metaworld())
-    multi_task_env = MultiTaskEnv(create_metaworld())
+    print(create_multitask_env())
+    multi_task_env = MultiTaskEnv(create_multitask_env())
 
     """ ALGO SETUP """
     mtppo = MTPPO(multi_task_env, config)
