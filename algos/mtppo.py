@@ -96,12 +96,11 @@ class MTPPO():
             with torch.no_grad():
                 for i, task in enumerate(self.env.tasks): # 10
                     episodic_return = []
-                    for epoch in range(self.batch_size / len(self.env.tasks)): # 50000 / 10 = 5000
+                    for epoch in range(int((self.batch_size / len(self.env.tasks)) / self.max_cycles)): # 10
                         next_obs, infos = task.reset()
                         one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
                         step_return = 0
-                        
-                        for step in range(0, self.max_cycles):
+                        for step in range(0, self.max_cycles): # 500
                             # rollover the observation 
                             # obs = batchify_obs(next_obs, self.device)
                             obs = torch.FloatTensor(next_obs)
@@ -111,7 +110,7 @@ class MTPPO():
                             actions, logprobs, entropy, values = self.policy.act(obs)
 
                             # execute the environment and log data
-                            next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
+                            next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
                             success = infos.get('success', False)
                             success_tracker.update(i, success)
 
@@ -126,19 +125,16 @@ class MTPPO():
                             step_return += rb_rewards[index].cpu().numpy()
 
                             # if we reach termination or truncation, end
+                            index += 1
                             if terms or truncs:
                                 break
-
-                            index += 1
+                            
 
                         episodic_return.append(step_return)
-
-                        index += 1
 
                         # skills advantage
                         gae = 0
                         for t in range(index-2, (index-self.max_cycles)-1, -1):
-                            print(t)
                             delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
                             gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
                             rb_advantages[t] = gae

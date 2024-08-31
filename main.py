@@ -12,7 +12,6 @@ import random
 
 #mt = metaworld.MT1('reach-v2', seed=0) # Construct the benchmark, sampling tasks
 mt = metaworld.MT10() # Construct the benchmark, sampling tasks
-mt.seed(0)
 
 def create_metaworld():
     training_envs = []
@@ -21,6 +20,7 @@ def create_metaworld():
         task = random.choice([task for task in mt.train_tasks
                                 if task.env_name == name])
         env.set_task(task)
+        env.seed(0)
         training_envs.append(env)
     return training_envs
 
@@ -55,7 +55,7 @@ if __name__ == "__main__":
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
-        'batch_size': 50000,
+        'batch_size': 10000,
         'max_path_length': 500,
         'min_batch': 32,
         'epoch_opt': 16,
