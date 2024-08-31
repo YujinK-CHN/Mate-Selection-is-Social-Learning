@@ -133,7 +133,7 @@ class SLE_MTPPO():
         child = nn.Sequential(
             concat_first_linear(parent1[0], parent2[0]),
             nn.Tanh(),
-            L0GateLayer1d(n_features=1024),
+            L0GateLayer1d(n_features=self.hidden_size*2),
             concat_last_linear(parent1[-1], parent2[-1]),
         )
         return child
