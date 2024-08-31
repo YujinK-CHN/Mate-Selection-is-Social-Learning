@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     try:
         pool = mp.Pool()
-        process_inputs = [(config, seeds[i]) for i in range(3)]
+        process_inputs = [(config, seeds[i]) for i in range(len(seeds))]
         results = pool.starmap(training, process_inputs)
         pool.close()
         pool.join()
