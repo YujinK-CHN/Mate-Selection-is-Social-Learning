@@ -472,7 +472,7 @@ class SLE_MTPPO():
                 loss.backward()
                 opt.step()
         
-        return policy, np.mean(episodic_return), success_tracker.overall_success_rate(), loss.item()
+        return policy, np.mean(task_returns), success_tracker.overall_success_rate(), loss.item()
 
 
     def save(self, path):

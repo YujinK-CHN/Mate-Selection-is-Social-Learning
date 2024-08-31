@@ -209,7 +209,7 @@ class MTPPO():
             mean_eval_return, mean_success_rate = self.eval()
             
             print(f"Training episode {episode}")
-            print(f"Episodic Return: {np.mean(episodic_return)}")
+            print(f"Episodic Return: {np.mean(task_returns)}")
             print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
             print(f"Evaluation Return: {mean_eval_return}")
             print(f"Evaluation success rate: {mean_success_rate}")
