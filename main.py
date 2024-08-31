@@ -51,8 +51,8 @@ if __name__ == "__main__":
         'batch_size': 5000,
         'max_path_length': 500,
         'min_batch': 32,
-        'epoch_opt': 4,
-        'total_episodes': 3,
+        'epoch_opt': 64,
+        'total_episodes': 2000,
         'hidden_size': 128,
         'lr': 0.0005
     }
@@ -85,6 +85,7 @@ if __name__ == "__main__":
         plt.show()
     except KeyboardInterrupt:
         print("Main process interrupted, terminating workers...")
+        plt.close('all')
         pool.terminate()  # Terminate all workers immediately
         pool.join()       # Wait for the workers to terminate
         print("All workers terminated.")
