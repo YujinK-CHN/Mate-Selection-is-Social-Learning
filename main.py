@@ -95,7 +95,14 @@ if __name__ == "__main__":
 
         plt.plot(x, y)
         plt.show()
-
+    except KeyboardInterrupt:
+        print("Main process interrupted, terminating workers...")
+        pool.terminate()  # Terminate all workers immediately
+        pool.join()       # Wait for the workers to terminate
+        print("All workers terminated.")
+    finally:
+        pool.close()  # Close the pool to prevent new tasks from being submitted
+        pool.join()   # Wait for all worker processes to finish
 
     # training(config, sle)
     
