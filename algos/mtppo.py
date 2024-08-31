@@ -41,6 +41,7 @@ class MTPPO():
             config
     ):
         self.env = env
+        self.seed = env.seed
         self.obs_shape = env.observation_space.shape[0]
         self.device = config['device']
         self.name = 'mtppo'

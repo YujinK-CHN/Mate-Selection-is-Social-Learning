@@ -29,11 +29,12 @@ def create_metaworld(seed):
 
 
 class MultiTaskEnv():
-    def __init__(self, tasks):
-        self.tasks = tasks # [task1, task2]
+    def __init__(self, seed):
+        self.tasks = create_metaworld(seed) # [task1, task2]
         self.current_task = None
-        self.observation_space = tasks[0].observation_space
-        self.action_space = tasks[0].action_space
+        self.observation_space = self.tasks[0].observation_space
+        self.action_space = self.tasks[0].action_space
+        self.seed = seed
 
     def reset(self):
         self.current_task = self.select_task()
@@ -69,9 +70,9 @@ if __name__ == "__main__":
 
     """ ENV SETUP """
     print(create_metaworld())
-    multi_task_env_0 = MultiTaskEnv(create_metaworld(0))
-    multi_task_env_42 = MultiTaskEnv(create_metaworld(42))
-    multi_task_env_100 = MultiTaskEnv(create_metaworld(100))
+    multi_task_env_0 = MultiTaskEnv(0)
+    multi_task_env_42 = MultiTaskEnv(42)
+    multi_task_env_100 = MultiTaskEnv(100)
 
     """ ALGO SETUP """
     sle = SLE_MTPPO(multi_task_env_0, config)
