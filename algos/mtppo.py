@@ -91,62 +91,60 @@ class MTPPO():
 
             # sampling
             index = 0
-            episodic_return = []
+            task_returns = []
             success_tracker = MultiTaskSuccessTracker(len(self.env.tasks))
-            
-            for epoch in range(int(self.batch_size / self.max_cycles)): # 5000 / 500 = 10
-                # collect an episode
-                with torch.no_grad():
-                    # collect observations and convert to batch of torch tensors
-                    next_obs, info = self.env.reset()
-                    task_id = self.env.tasks.index(self.env.current_task)
-                    one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[task_id]
+            with torch.no_grad():
+                for i, task in enumerate(self.env.tasks): # 10
+                    episodic_return = []
+                    for epoch in range(self.batch_size / len(self.env.tasks)): # 50000 / 10 = 5000
+                        next_obs, infos = task.reset()
+                        one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
+                        step_return = 0
+                        
+                        for step in range(0, self.max_cycles):
+                            # rollover the observation 
+                            # obs = batchify_obs(next_obs, self.device)
+                            obs = torch.FloatTensor(next_obs)
+                            obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
-                    step_return = 0
-                    
-                    # each episode has num_steps
-                    for step in range(0, self.max_cycles):
-                        # rollover the observation 
-                        #obs = batchify_obs(next_obs, self.device)
-                        obs = torch.FloatTensor(next_obs)
-                        obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
+                            # get actions from skills
+                            actions, logprobs, entropy, values = self.policy.act(obs)
 
-                        # get actions from skills
-                        actions, logprobs, entropy, values = self.policy.act(obs)
+                            # execute the environment and log data
+                            next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
+                            success = infos.get('success', False)
+                            success_tracker.update(i, success)
 
-                        # execute the environment and log data
-                        next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
-                        success = infos.get('success', False)
-                        success_tracker.update(task_id, success)
+                            # add to episode storage
+                            rb_obs[index] = obs
+                            rb_rewards[index] = rewards
+                            rb_terms[index] = terms
+                            rb_actions[index] = actions
+                            rb_logprobs[index] = logprobs
+                            rb_values[index] = values.flatten()
+                            # compute episodic return
+                            step_return += rb_rewards[index].cpu().numpy()
 
-                        # add to episode storage
-                        rb_obs[index] = obs
-                        rb_rewards[index] = rewards
-                        rb_terms[index] = terms
-                        rb_actions[index] = actions
-                        rb_logprobs[index] = logprobs
-                        rb_values[index] = values.flatten()
-                        # compute episodic return
-                        step_return += rb_rewards[index].cpu().numpy()
+                            # if we reach termination or truncation, end
+                            if terms or truncs:
+                                break
 
-                        # if we reach termination or truncation, end
-                        if terms or truncs:
-                            break
+                            index += 1
+
+                        episodic_return.append(step_return)
 
                         index += 1
-                    episodic_return.append(step_return)
 
-                    index += 1
-
-                    
-                    # skills advantage
-                    with torch.no_grad():
+                        # skills advantage
                         gae = 0
                         for t in range(index-2, (index-self.max_cycles)-1, -1):
+                            print(t)
                             delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
                             gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
                             rb_advantages[t] = gae
-                            
+
+                    task_returns.append(np.mean(episodic_return))
+                                
             rb_returns = rb_advantages + rb_values
 
             # Optimizing the policy and value network

@@ -82,7 +82,7 @@ class SLE_MTPPO():
         self.mutation_rate = 0.003
         self.evolution_period = 2000
         self.merging_period = 250
-        self.merging = None
+        self.fitness = None
     
     """ TRAINING LOGIC """
     def get_fitness(self, pop: list) -> torch.FloatTensor:
@@ -92,27 +92,28 @@ class SLE_MTPPO():
             success_tracker_eval = MultiTaskSuccessTracker(len(self.env.tasks))
             policy.eval()
             with torch.no_grad():
-                for task in self.env.tasks:
+                for i, task in enumerate(self.env.tasks):
                     # render 5 episodes out
                     episodic_return = []
                     for episode in range(5):
-                        next_obs, infos = self.env.reset()
-                        task_id = self.env.tasks.index(self.env.current_task)
+                        next_obs, infos = task.reset()
+                        one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
                         terms = False
                         truncs = False
                         step_return = 0
                         while not terms and not truncs:
                             # rollover the observation 
                             #obs = batchify_obs(next_obs, self.device)
-                            obs = torch.FloatTensor(next_obs).to(self.device)
+                            obs = torch.FloatTensor(next_obs)
+                            obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                             # get actions from skills
-                            actions, logprobs, entropy, values = policy.act(obs, task_id)
+                            actions, logprobs, entropy, values = policy.act(obs)
 
                             # execute the environment and log data
                             next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
                             success = infos.get('success', False)
-                            success_tracker_eval.update(task_id, success)
+                            success_tracker_eval.update(i, success)
                             terms = terms
                             truncs = truncs
                             step_return += rewards
@@ -151,6 +152,7 @@ class SLE_MTPPO():
 
             # fitness func / evaluation: currently using rewards as fitness for each individual
             fitness, mean_success_rate = self.get_fitness(pop)
+            self.fitness = fitness
             print(f"Training episode {episode}")
             print(f"Evaluation return: {fitness}")
             print(f"Evaluation success rate: {mean_success_rate}")
@@ -165,13 +167,17 @@ class SLE_MTPPO():
                 child = self.crossover(policy.shared_layers, mates[i].shared_layers)
                 child = self.mutate(child)
                 self.pop[i].shared_layers = child
-            self.pop = self.pop.to(self.device)
                 
             ################################ Training ##################################
-            self.pop = [] # receive from multi-process
-            seeds_episodic_return = []  # receive from multi-process
-            seeds_episodic_sr = []  # receive from multi-process
-            seeds_loss = []  # receive from multi-process
+            env = [copy.deepcopy(self.env) for _ in range(self.pop_size)]
+            with mp.Pool(processes=16) as pool:
+                process_inputs = [(env[i], self.pop[i]) for i in range(self.pop_size)]
+                results = pool.starmap(self.train, process_inputs)
+
+            self.pop = [res[0] for res in results] # receive from multi-process
+            seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
+            seeds_episodic_sr = [res[2] for res in results]  # receive from multi-process
+            seeds_loss = [res[3] for res in results]  # receive from multi-process
 
             
             print(f"Episodic return: {np.mean(seeds_episodic_return)}")
@@ -195,14 +201,14 @@ class SLE_MTPPO():
 
         important_indices = policy.shared_layers[2].important_indices()
         policy.shared_layers = nn.Sequential(
-            compress_first_linear(self.policy.shared_layers[0], important_indices),
+            compress_first_linear(policy.shared_layers[0], important_indices),
             nn.Tanh(),
-            compress_final_linear(self.policy.shared_layers[-1], important_indices),
+            compress_final_linear(policy.shared_layers[-1], important_indices),
         )
 
         policy, mean_episodic_return, episodic_success_rate, loss = self.train_finetune_stage(env, policy)
                 
-        return policy, mean_episodic_return, episodic_success_rate, loss
+        return (policy, mean_episodic_return, episodic_success_rate, loss) # a tuple of 4
                 
 
     def train_merging_stage(self, env, policy):
@@ -225,63 +231,58 @@ class SLE_MTPPO():
 
         # sampling
         index = 0
-        merging = True
-        episodic_return = []
+        task_returns = []
         success_tracker = MultiTaskSuccessTracker(len(env.tasks))
-            
-        for epoch in range(int(self.batch_size / self.max_cycles)): # 5000 / 500 = 10
-            # collect an episode
-            with torch.no_grad():
-                # collect observations and convert to batch of torch tensors
-                next_obs, info = env.reset()
-                task_id = env.tasks.index(env.current_task)
-                one_hot_id = torch.diag(torch.ones(len(env.tasks)))[task_id]
-
-                step_return = 0
+        with torch.no_grad():
+            for i, task in enumerate(self.env.tasks): # 10
+                episodic_return = []
+                for epoch in range(self.batch_size / len(env.tasks)): # 50000 / 10 = 5000
+                    next_obs, infos = task.reset()
+                    one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
+                    step_return = 0
                     
-                # each episode has num_steps
-                for step in range(0, self.max_cycles):
-                    # rollover the observation 
-                    #obs = batchify_obs(next_obs, self.device)
-                    obs = torch.FloatTensor(next_obs)
-                    obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
+                    for step in range(0, self.max_cycles):
+                        # rollover the observation 
+                        #obs = batchify_obs(next_obs, self.device)
+                        obs = torch.FloatTensor(next_obs)
+                        obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
-                    # get actions from skills
-                    actions, logprobs, entropy, values = policy.act(obs)
+                        # get actions from skills
+                        actions, logprobs, entropy, values = policy.act(obs)
 
-                    # execute the environment and log data
-                    next_obs, rewards, terms, truncs, infos = env.step(actions.cpu().numpy())
-                    success = infos.get('success', False)
-                    success_tracker.update(task_id, success)
+                        # execute the environment and log data
+                        next_obs, rewards, terms, truncs, infos = env.step(actions.cpu().numpy())
+                        success = infos.get('success', False)
+                        success_tracker.update(i, success)
 
-                    # add to episode storage
-                    rb_obs[index] = obs
-                    rb_rewards[index] = rewards
-                    rb_terms[index] = terms
-                    rb_actions[index] = actions
-                    rb_logprobs[index] = logprobs
-                    rb_values[index] = values.flatten()
-                    # compute episodic return
-                    step_return += rb_rewards[index].cpu().numpy()
+                        # add to episode storage
+                        rb_obs[index] = obs
+                        rb_rewards[index] = rewards
+                        rb_terms[index] = terms
+                        rb_actions[index] = actions
+                        rb_logprobs[index] = logprobs
+                        rb_values[index] = values.flatten()
+                        # compute episodic return
+                        step_return += rb_rewards[index].cpu().numpy()
 
-                    # if we reach termination or truncation, end
-                    if terms or truncs:
-                        break
+                        # if we reach termination or truncation, end
+                        if terms or truncs:
+                            break
+
+                        index += 1
+
+                    episodic_return.append(step_return)
 
                     index += 1
 
-                episodic_return.append(step_return)
-
-                index += 1
-
-                    
-                # skills advantage
-                with torch.no_grad():
+                    # skills advantage
                     gae = 0
                     for t in range(index-2, (index-self.max_cycles)-1, -1):
                         delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
                         gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
                         rb_advantages[t] = gae
+
+                task_returns.append(np.mean(episodic_return))
                             
         rb_returns = rb_advantages + rb_values
 
@@ -367,63 +368,59 @@ class SLE_MTPPO():
 
         # sampling
         index = 0
-        merging = True
-        episodic_return = []
+        task_returns = []
         success_tracker = MultiTaskSuccessTracker(len(env.tasks))
-            
-        for epoch in range(int(self.batch_size / self.max_cycles)): # 5000 / 500 = 10
-            # collect an episode
-            with torch.no_grad():
-                # collect observations and convert to batch of torch tensors
-                next_obs, info = env.reset()
-                task_id = env.tasks.index(env.current_task)
-                one_hot_id = torch.diag(torch.ones(len(env.tasks)))[task_id]
-
-                step_return = 0
+        with torch.no_grad():
+            for i, task in enumerate(self.env.tasks): # 10
+                episodic_return = []
+                for epoch in range(self.batch_size / len(env.tasks)): # 50000 / 10 = 5000
+                    next_obs, infos = task.reset()
+                    one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
+                    step_return = 0
                     
-                # each episode has num_steps
-                for step in range(0, self.max_cycles):
-                    # rollover the observation 
-                    #obs = batchify_obs(next_obs, self.device)
-                    obs = torch.FloatTensor(next_obs)
-                    obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
+                    for step in range(0, self.max_cycles):
+                        # rollover the observation 
+                        # obs = batchify_obs(next_obs, self.device)
+                        obs = torch.FloatTensor(next_obs)
+                        obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
-                    # get actions from skills
-                    actions, logprobs, entropy, values = policy.act(obs)
+                        # get actions from skills
+                        actions, logprobs, entropy, values = policy.act(obs)
 
-                    # execute the environment and log data
-                    next_obs, rewards, terms, truncs, infos = env.step(actions.cpu().numpy())
-                    success = infos.get('success', False)
-                    success_tracker.update(task_id, success)
+                        # execute the environment and log data
+                        next_obs, rewards, terms, truncs, infos = env.step(actions.cpu().numpy())
+                        success = infos.get('success', False)
+                        success_tracker.update(i, success)
 
-                    # add to episode storage
-                    rb_obs[index] = obs
-                    rb_rewards[index] = rewards
-                    rb_terms[index] = terms
-                    rb_actions[index] = actions
-                    rb_logprobs[index] = logprobs
-                    rb_values[index] = values.flatten()
-                    # compute episodic return
-                    step_return += rb_rewards[index].cpu().numpy()
+                        # add to episode storage
+                        rb_obs[index] = obs
+                        rb_rewards[index] = rewards
+                        rb_terms[index] = terms
+                        rb_actions[index] = actions
+                        rb_logprobs[index] = logprobs
+                        rb_values[index] = values.flatten()
+                        # compute episodic return
+                        step_return += rb_rewards[index].cpu().numpy()
 
-                    # if we reach termination or truncation, end
-                    if terms or truncs:
-                        break
+                        # if we reach termination or truncation, end
+                        if terms or truncs:
+                            break
+
+                        index += 1
+
+                    episodic_return.append(step_return)
 
                     index += 1
 
-                episodic_return.append(step_return)
-
-                index += 1
-
-                    
-                # skills advantage
-                with torch.no_grad():
+                    # skills advantage
                     gae = 0
                     for t in range(index-2, (index-self.max_cycles)-1, -1):
+                        print(t)
                         delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
                         gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
                         rb_advantages[t] = gae
+
+                task_returns.append(np.mean(episodic_return))
                             
         rb_returns = rb_advantages + rb_values
 
@@ -484,36 +481,6 @@ class SLE_MTPPO():
         return policy, np.mean(episodic_return), success_tracker.overall_success_rate(), loss.item()
 
 
-    def eval(self):
-        episodic_return = []
-        success_tracker_eval = MultiTaskSuccessTracker(len(self.env.tasks))
-        self.policy.eval()
-        with torch.no_grad():
-            # render 5 episodes out
-            for episode in range(5):
-                next_obs, infos = self.env.reset()
-                task_id = self.env.tasks.index(self.env.current_task)
-                terms = False
-                truncs = False
-                step_return = 0
-                while not terms and not truncs:
-                    # rollover the observation 
-                    #obs = batchify_obs(next_obs, self.device)
-                    obs = torch.FloatTensor(next_obs).to(self.device)
-
-                    # get actions from skills
-                    actions, logprobs, entropy, values = self.policy.act(obs, task_id)
-
-                    # execute the environment and log data
-                    next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
-                    success = infos.get('success', False)
-                    success_tracker_eval.update(task_id, success)
-                    terms = terms
-                    truncs = truncs
-                    step_return += rewards
-                episodic_return.append(step_return)
-
-        return np.mean(episodic_return), success_tracker_eval.overall_success_rate()
-
     def save(self, path):
-        torch.save(self.policy.state_dict(), path)
+        fitness = torch.sum(self.fitness, dim=-1)
+        torch.save(self.pop[torch.argmax(fitness, dim=-1)].state_dict(), path)
