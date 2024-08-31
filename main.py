@@ -49,7 +49,7 @@ if __name__ == "__main__":
         'batch_size': 5000,
         'max_path_length': 500,
         'min_batch': 32,
-        'epoch_opt': 32,
+        'epoch_opt': 8,
         'total_episodes': 4000,
         'lr': 0.0005
     }

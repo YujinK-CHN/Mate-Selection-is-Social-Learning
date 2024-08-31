@@ -95,7 +95,7 @@ class SLE_MTPPO():
                     # render 5 episodes out
                     episodic_return = []
                     for episode in range(5):
-                        next_obs, infos = task.reset()
+                        next_obs, infos = task.reset(seed=0)
                         one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
                         terms = False
                         truncs = False
@@ -243,7 +243,7 @@ class SLE_MTPPO():
             for i, task in enumerate(env.tasks): # 10
                 episodic_return = []
                 for epoch in range(int((self.batch_size / len(env.tasks)) / self.max_cycles)): 
-                    next_obs, infos = task.reset()
+                    next_obs, infos = task.reset(seed=0)
                     one_hot_id = torch.diag(torch.ones(len(env.tasks)))[i]
                     step_return = 0
                     
@@ -377,7 +377,7 @@ class SLE_MTPPO():
             for i, task in enumerate(env.tasks): # 10
                 episodic_return = []
                 for epoch in range(int((self.batch_size / len(env.tasks)) / self.max_cycles)): 
-                    next_obs, infos = task.reset()
+                    next_obs, infos = task.reset(seed=0)
                     one_hot_id = torch.diag(torch.ones(len(env.tasks)))[i]
                     step_return = 0
                     
