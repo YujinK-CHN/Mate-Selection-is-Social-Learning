@@ -119,7 +119,7 @@ class SLE_MTPPO():
                             step_return += rewards
                         episodic_return.append(step_return)
                     task_returns.append(np.mean(episodic_return))
-        policies_fitness.append(task_returns)
+            policies_fitness.append(task_returns)
             
         return torch.FloatTensor(policies_fitness)
 
@@ -196,7 +196,7 @@ class SLE_MTPPO():
 
 
     def train(self, env, policy):
-
+        policy.train()
         policy = self.train_merging_stage(env, policy)
 
         important_indices = policy.shared_layers[2].important_indices()
