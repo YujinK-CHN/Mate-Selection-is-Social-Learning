@@ -52,7 +52,7 @@ if __name__ == "__main__":
         'max_path_length': 500,
         'min_batch': 32,
         'epoch_opt': 64,
-        'total_episodes': 10,
+        'total_episodes': 1,
         'hidden_size': 128,
         'lr': 0.0005
     }
@@ -71,6 +71,8 @@ if __name__ == "__main__":
     pool = mp.Pool()
     process_inputs = [(config, seeds[i]) for i in range(3)]
     results = pool.starmap(training, process_inputs)
+    pool.close()
+    pool.join()
 
     seeds_episodic_x = [res[0] for res in results]  # receive from multi-process
     seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
