@@ -84,12 +84,12 @@ class MTPPO():
             if self.continuous == True:
                 rb_actions = torch.zeros((self.batch_size, self.env.action_space.shape[0])).to(self.device)
             else:
-                rb_actions = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
-            rb_logprobs = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
-            rb_rewards = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
-            rb_advantages = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
-            rb_terms = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
-            rb_values = torch.zeros((self.batch_size, self.pop_size)).to(self.device)
+                rb_actions = torch.zeros((self.batch_size, 1)).to(self.device)
+            rb_logprobs = torch.zeros((self.batch_size, 1)).to(self.device)
+            rb_rewards = torch.zeros((self.batch_size, 1)).to(self.device)
+            rb_advantages = torch.zeros((self.batch_size, 1)).to(self.device)
+            rb_terms = torch.zeros((self.batch_size, 1)).to(self.device)
+            rb_values = torch.zeros((self.batch_size, 1)).to(self.device)
 
             # sampling
             index = 0
@@ -211,6 +211,7 @@ class MTPPO():
             mean_eval_return, mean_success_rate = self.eval()
             
             print(f"Training episode {episode}")
+            print(f"Training seed {self.seed}")
             print(f"Episodic Return: {np.mean(task_returns)}")
             print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
             print(f"Evaluation Return: {mean_eval_return}")
