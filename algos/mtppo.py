@@ -212,6 +212,7 @@ class MTPPO():
             mean_eval_return, mean_success_rate = self.eval()
             
             print(f"Training episode {episode}")
+            print(f"Training seed {self.seed}")
             print(f"Episodic Return: {np.mean(task_returns)}")
             print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
             print(f"Evaluation Return: {mean_eval_return}")
@@ -240,7 +241,7 @@ class MTPPO():
         with torch.no_grad():
             # render 5 episodes out
             for episode in range(5):
-                next_obs, infos = self.env.reset()
+                next_obs, infos = self.env.reset(self.seed)
                 task_id = self.env.tasks.index(self.env.current_task)
                 one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[task_id]
                 terms = False
