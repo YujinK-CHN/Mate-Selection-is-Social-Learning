@@ -69,7 +69,6 @@ if __name__ == "__main__":
     }
 
     """ ENV SETUP """
-    print(create_metaworld())
     multi_task_env_0 = MultiTaskEnv(0)
     multi_task_env_42 = MultiTaskEnv(42)
     multi_task_env_100 = MultiTaskEnv(100)
