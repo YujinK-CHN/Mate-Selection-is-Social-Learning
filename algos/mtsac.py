@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 from collections import deque
+import matplotlib.pyplot as plt
 from policies.multitask_policy import TaskConditionedNetwork, TaskConditionedPolicyNetwork
 
 
@@ -30,7 +31,7 @@ class MultiTaskSAC:
         self.num_epochs = config['num_epochs']
         self.max_path_length = config['max_path_length']
 
-
+        self.seed = envs.seed
         self.num_tasks = len(envs.tasks)
         self.hidden_nonlinearity = nn.ReLU
         self.policy_net = TaskConditionedPolicyNetwork(self.state_dim, self.action_dim, self.num_tasks, self.hidden_sizes, self.hidden_nonlinearity, self.min_std, self.max_std)
@@ -78,6 +79,9 @@ class MultiTaskSAC:
         )
 
     def train(self):
+        y1 = []
+        y2 = []
+        y3 = []
         for epoch in range(self.num_epochs):
             for _ in range(self.epoch_cycles):
                 for task_id, env in enumerate(self.envs.tasks):
@@ -86,7 +90,7 @@ class MultiTaskSAC:
 
                     for _ in range(self.max_path_length):
                         action = self.select_action(state, task_id)
-                        next_state, reward, done, _ = env.step(action)
+                        next_state, reward, done, truncs, info= env.step(action)
                         self.store_transition((state, action, reward, next_state, done, task_id))
 
                         state = next_state
@@ -151,4 +155,27 @@ class MultiTaskSAC:
                         for target_param, param in zip(self.qf2_target.parameters(), self.qf2_net.parameters()):
                             target_param.data.mul_(1 - self.tau)
                             target_param.data.add_(self.tau * param.data)
+
+            print(f"Training episode {epoch}")
+            print(f"Training seed {self.seed}")
+            print(f"Episodic Return: {np.mean(task_returns)}")
+            print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
+            print(f"Evaluation Return: {mean_eval_return}")
+            print(f"Evaluation success rate: {mean_success_rate}")
+            print(f"Episodic Loss: {policy_loss.item()}")
+            #print(f"overall success rate: {success_tracker.overall_success_rate() * 100:.2f}")
+            print("\n-------------------------------------------\n")
+
+            x = np.linspace(0, epoch, epoch+1)
+            y1.append(np.mean(task_returns))
+            y2.append(mean_eval_return)
+            #y3.append(success_tracker.overall_success_rate())
+            if epoch % 10 == 0:
+                plt.plot(x, y1)
+                plt.plot(x, y2)
+                #plt.plot(x, y3)
+                plt.pause(0.05)
+        plt.show(block=False)
+        
+        return x, y1
 
