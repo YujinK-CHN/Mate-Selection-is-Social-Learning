@@ -6,9 +6,9 @@ from pipline.train import training
 from algos.ppo import PPO
 from algos.ippo import IPPO
 from algos.mappo import MAPPO
-from algos.gippo import GIPPO
 from algos.mtppo import MTPPO
 from algos.sle_ppo import SLE_MTPPO
+from algos.mtsac import MultiTaskSAC
 
 import metaworld
 import random
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     }
 
     config_mtsac = {
-        'hidden_dim': 400,  # from hidden_sizes
+        'hidden_dim': (400, 400),  # from hidden_sizes
         'discount': 0.99,  # discount
         'tau': 5e-3,  # target_update_tau
         'alpha': 0.2,  # entropy regularization
@@ -82,10 +82,12 @@ if __name__ == "__main__":
         'min_std': -20,  # min_std
         'max_std':  2,  # max_std
         'gradient_steps_per_itr': 500,  # gradient_steps_per_itr
+        'epoch_cycles': 200,
+        'num_epoch': 500,
         'min_buffer_size': 1500,  # min_buffer_size
-        'use_automatic_entropy_tuning': True  # use_automatic_entropy_tuning
+        'use_automatic_entropy_tuning': True,  # use_automatic_entropy_tuning
+        'max_path_length': 500
     }
-
 
         
     
@@ -96,15 +98,23 @@ if __name__ == "__main__":
     multi_task_env_42 = MultiTaskEnv(42)
     multi_task_env_100 = MultiTaskEnv(100)
 
-    """ ALGO SETUP """
+    """ SLEPPO SETUP """
     sle = SLE_MTPPO(multi_task_env_0, config)
+
+    """ MTPPO SETUP """
     mtppo1 = MTPPO(multi_task_env_0, config)
     mtppo2 = MTPPO(multi_task_env_42, config)
     mtppo3 = MTPPO(multi_task_env_100, config)
-    seeds = [mtppo1, mtppo2, mtppo3]
+    seeds_ppo = [mtppo1, mtppo2, mtppo3]
+
+    """ MTSAC SETUP """
+    mtsac1 = MultiTaskSAC(multi_task_env_0, config_mtsac)
+    mtsac2 = MultiTaskSAC(multi_task_env_42, config_mtsac)
+    mtsac3 = MultiTaskSAC(multi_task_env_100, config_mtsac)
+    seeds_sac = [mtsac1, mtsac2, mtsac3]
 
     pool = mp.Pool()
-    process_inputs = [(config, seeds[i]) for i in range(len(seeds))]
+    process_inputs = [(config, seeds_ppo[i]) for i in range(len(seeds_ppo))]
     results = pool.starmap(training, process_inputs)
     pool.close()
     pool.join()
