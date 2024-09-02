@@ -69,6 +69,8 @@ class SLE_MTPPO():
         self.pop_size = config['pop_size']
         self.total_episodes = config['total_episodes']
         self.epoch_opt = config['epoch_opt']
+        self.epoch_merging = config['epoch_merging']
+        self.epoch_finetune = config['epoch_finetune']
         self.batch_size = config['batch_size']
         self.min_batch = config['min_batch']
         self.discount = config['discount']
@@ -294,7 +296,7 @@ class SLE_MTPPO():
         # Optimizing the policy and value network
          
         rb_index = np.arange(rb_obs.shape[0])
-        for epoch in range(self.epoch_opt): # 256
+        for epoch in range(self.epoch_merging):
             alpha += 0.05 * np.sqrt(alpha)
             # shuffle the indices we use to access the data
             np.random.shuffle(rb_index)
@@ -429,7 +431,7 @@ class SLE_MTPPO():
         # Optimizing the policy and value network
          
         rb_index = np.arange(rb_obs.shape[0])
-        for epoch in range(self.epoch_opt): # 256
+        for epoch in range(self.epoch_finetune): # 256
             # shuffle the indices we use to access the data
             np.random.shuffle(rb_index)
             for start in range(0, rb_obs.shape[0], self.min_batch):
