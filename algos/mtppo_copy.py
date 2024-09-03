@@ -213,13 +213,13 @@ class MTPPO():
                     torch.mean(task_losses).backward()
                     self.opt.step()
 
-            mean_eval_return, mean_success_rate = self.eval()
+            eval_return, mean_success_rate = self.eval()
             
             print(f"Training episode {episode}")
             print(f"Training seed {self.seed}")
             print(f"Episodic Return: {np.mean(task_returns)}")
             print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
-            print(f"Evaluation Return: {mean_eval_return}")
+            print(f"Evaluation Return: {eval_return}")
             print(f"Evaluation success rate: {mean_success_rate}")
             print(f"Episodic Loss: {loss.item()}")
             #print(f"overall success rate: {success_tracker.overall_success_rate() * 100:.2f}")
@@ -227,7 +227,7 @@ class MTPPO():
 
             x = np.linspace(0, episode, episode+1)
             y1.append(np.mean(task_returns))
-            y2.append(mean_eval_return)
+            y2.append(np.mean(eval_return))
             #y3.append(success_tracker.overall_success_rate())
             if episode % 10 == 0:
                 plt.plot(x, y1)
@@ -270,7 +270,7 @@ class MTPPO():
                     step_return += rewards
                 episodic_return.append(step_return)
 
-        return np.mean(episodic_return), success_tracker_eval.overall_success_rate()
+        return episodic_return, success_tracker_eval.overall_success_rate()
 
     def save(self, path):
         torch.save(self.policy.state_dict(), path)
