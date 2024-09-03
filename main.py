@@ -6,7 +6,7 @@ from pipline.train import training
 from algos.ppo import PPO
 from algos.ippo import IPPO
 from algos.mappo import MAPPO
-from algos.mtppo import MTPPO
+from algos.mtppo_copy import MTPPO
 from algos.sle_ppo import SLE_MTPPO
 from algos.mtsac import MultiTaskSAC
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
-        'batch_size': 100000,
+        'batch_size': 10000,
         'max_path_length': 500,
         'min_batch': 32,
         'epoch_merging': 4,
@@ -83,7 +83,7 @@ if __name__ == "__main__":
         'max_std':  2,  # max_std
         'gradient_steps_per_itr': 500,  # gradient_steps_per_itr
         'epoch_cycles': 200,
-        'num_epoch': 500,
+        'num_epochs': 500,
         'min_buffer_size': 1500,  # min_buffer_size
         'use_automatic_entropy_tuning': True,  # use_automatic_entropy_tuning
         'max_path_length': 500
@@ -107,12 +107,12 @@ if __name__ == "__main__":
     mtppo3 = MTPPO(multi_task_env_100, config)
     seeds_ppo = [mtppo1, mtppo2, mtppo3]
 
-    """ MTSAC SETUP """
+    """ MTSAC SETUP 
     mtsac1 = MultiTaskSAC(multi_task_env_0, config_mtsac)
     mtsac2 = MultiTaskSAC(multi_task_env_42, config_mtsac)
     mtsac3 = MultiTaskSAC(multi_task_env_100, config_mtsac)
     seeds_sac = [mtsac1, mtsac2, mtsac3]
-
+    
     pool = mp.Pool()
     process_inputs = [(config, seeds_ppo[i]) for i in range(len(seeds_ppo))]
     results = pool.starmap(training, process_inputs)
@@ -127,6 +127,7 @@ if __name__ == "__main__":
 
     plt.plot(x, y)
     plt.show()
+    """
 
-    # training(config, sle)
+    training(config, mtppo2)
     

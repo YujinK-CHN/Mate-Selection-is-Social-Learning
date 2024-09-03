@@ -81,16 +81,16 @@ class MTPPO():
         for episode in range(self.total_episodes): # 4000
             self.policy.train()
             # clear memory
-            rb_obs = torch.zeros((self.num_tasks, self.batch_size / self.num_tasks, self.obs_shape + len(self.env.tasks))).to(self.device)
+            rb_obs = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), self.obs_shape + len(self.env.tasks))).to(self.device)
             if self.continuous == True:
-                rb_actions = torch.zeros((self.num_tasks, self.batch_size / self.num_tasks, self.env.action_space.shape[0])).to(self.device)
+                rb_actions = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), self.env.action_space.shape[0])).to(self.device)
             else:
-                rb_actions = torch.zeros((self.num_tasks, self.batch_size / self.num_tasks, 1)).to(self.device) # [10, 10000, 1] if batch size 100000. 10000 = 500 * 20
-            rb_logprobs = torch.zeros((self.num_tasks, self.batch_size / self.num_tasks, 1)).to(self.device)
-            rb_rewards = torch.zeros((self.num_tasks, self.batch_size / self.num_tasks, 1)).to(self.device)
-            rb_advantages = torch.zeros((self.num_tasks, self.batch_size / self.num_tasks, 1)).to(self.device)
-            rb_terms = torch.zeros((self.num_tasks, self.batch_size / self.num_tasks, 1)).to(self.device)
-            rb_values = torch.zeros((self.num_tasks, self.batch_size / self.num_tasks, 1)).to(self.device)
+                rb_actions = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device) # [10, 10000, 1] if batch size 100000. 10000 = 500 * 20
+            rb_logprobs = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+            rb_rewards = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+            rb_advantages = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+            rb_terms = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+            rb_values = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
 
             # sampling
             
