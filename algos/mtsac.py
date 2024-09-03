@@ -6,6 +6,31 @@ from collections import deque
 import matplotlib.pyplot as plt
 from policies.multitask_policy import TaskConditionedNetwork, TaskConditionedPolicyNetwork
 
+class MultiTaskSuccessTracker:
+    def __init__(self, num_tasks):
+        self.num_tasks = num_tasks
+        self.success_counts = [0] * num_tasks
+        self.total_counts = [0] * num_tasks
+
+    def update(self, task_id, success):
+        """Update success counts based on task_id."""
+        self.total_counts[task_id] += 1
+        if success:
+            self.success_counts[task_id] += 1
+
+    def task_success_rate(self, task_id):
+        """Calculate success rate for a specific task."""
+        if self.total_counts[task_id] == 0:
+            return 0.0
+        return self.success_counts[task_id] / self.total_counts[task_id]
+
+    def overall_success_rate(self):
+        """Calculate the overall success rate across all tasks."""
+        total_successes = sum(self.success_counts)
+        total_attempts = sum(self.total_counts)
+        if total_attempts == 0:
+            return 0.0
+        return total_successes / total_attempts
 
 class MultiTaskSAC:
     def __init__(
@@ -83,19 +108,28 @@ class MultiTaskSAC:
         y2 = []
         y3 = []
         for epoch in range(self.num_epochs):
+            cycle_returns = []
+            success_tracker = MultiTaskSuccessTracker(len(self.env.tasks))
             for _ in range(self.epoch_cycles):
+                task_returns = []
                 for task_id, env in enumerate(self.envs.tasks):
                     state = env.reset()
                     task_embedding = torch.eye(self.num_tasks)[task_id]
-
+                    step_return = 0
                     for _ in range(self.max_path_length):
                         action = self.select_action(state, task_id)
                         next_state, reward, done, truncs, info= env.step(action)
+                        success = info.get('success', False)
+                        success_tracker.update(task_id, success)
                         self.store_transition((state, action, reward, next_state, done, task_id))
 
                         state = next_state
+                        step_return += reward
+                        
                         if done:
                             break
+                    task_returns.append(step_return)
+                cycle_returns.append(np.mean(task_returns))
 
                 if len(self.replay_buffer) < self.batch_size:
                     return
@@ -156,9 +190,10 @@ class MultiTaskSAC:
                             target_param.data.mul_(1 - self.tau)
                             target_param.data.add_(self.tau * param.data)
 
+            mean_eval_return, mean_success_rate = self.eval()
             print(f"Training episode {epoch}")
             print(f"Training seed {self.seed}")
-            print(f"Episodic Return: {np.mean(task_returns)}")
+            print(f"Episodic Return: {np.mean(cycle_returns)}")
             print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
             print(f"Evaluation Return: {mean_eval_return}")
             print(f"Evaluation success rate: {mean_success_rate}")
@@ -179,3 +214,38 @@ class MultiTaskSAC:
         
         return x, y1
 
+    def eval(self):
+        episodic_return = []
+        success_tracker_eval = MultiTaskSuccessTracker(len(self.env.tasks))
+        self.policy.eval()
+        with torch.no_grad():
+            # render 5 episodes out
+            for episode in range(5):
+                next_obs, infos = self.env.reset()
+                task_id = self.env.tasks.index(self.env.current_task)
+                one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[task_id]
+                terms = False
+                truncs = False
+                step_return = 0
+                while not terms and not truncs:
+                    # rollover the observation 
+                    #obs = batchify_obs(next_obs, self.device)
+                    obs = torch.FloatTensor(next_obs)
+                    obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
+
+                    # get actions from skills
+                    actions, logprobs, entropy, values = self.policy.act(obs)
+
+                    # execute the environment and log data
+                    next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
+                    success = infos.get('success', False)
+                    success_tracker_eval.update(task_id, success)
+                    terms = terms
+                    truncs = truncs
+                    step_return += rewards
+                episodic_return.append(step_return)
+
+        return np.mean(episodic_return), success_tracker_eval.overall_success_rate()
+
+    def save(self, path):
+        torch.save(self.policy.state_dict(), path)
