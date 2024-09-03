@@ -89,43 +89,46 @@ class SLE_MTPPO():
         self.fitness = None
     
     """ TRAINING LOGIC """
-    def get_fitness(self, pop: list):
-        policies_fitness = []
-        for policy in pop:
-            task_returns = []
-            success_tracker_eval = MultiTaskSuccessTracker(self.num_tasks)
-            policy.eval()
-            with torch.no_grad():
-                for i, task in enumerate(self.env.tasks):
-                    # render 5 episodes out
-                    episodic_return = []
-                    for episode in range(1):
-                        next_obs, infos = task.reset()
-                        one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
-                        terms = False
-                        truncs = False
-                        step_return = 0
-                        while not terms and not truncs:
-                            # rollover the observation 
-                            #obs = batchify_obs(next_obs, self.device)
-                            obs = torch.FloatTensor(next_obs)
-                            obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
+    def eval(self, policy):
+        task_returns = []
+        success_tracker_eval = MultiTaskSuccessTracker(self.num_tasks)
+        policy.eval()
+        with torch.no_grad():
+            for i, task in enumerate(self.env.tasks):
+                # render 5 episodes out
+                episodic_return = []
+                for episode in range(5):
+                    next_obs, infos = task.reset()
+                    one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
+                    terms = False
+                    truncs = False
+                    step_return = 0
+                    while not terms and not truncs:
+                        # rollover the observation 
+                        #obs = batchify_obs(next_obs, self.device)
+                        obs = torch.FloatTensor(next_obs)
+                        obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
-                            # get actions from skills
-                            actions, logprobs, entropy, values = policy.act(obs)
+                        # get actions from skills
+                        actions, logprobs, entropy, values = policy.act(obs)
 
-                            # execute the environment and log data
-                            next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
-                            success = infos.get('success', False)
-                            success_tracker_eval.update(i, success)
-                            terms = terms
-                            truncs = truncs
-                            step_return += rewards
-                        episodic_return.append(step_return)
-                    task_returns.append(np.mean(episodic_return))
-            policies_fitness.append(task_returns)
+                        # execute the environment and log data
+                        next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
+                        success = infos.get('success', False)
+                        success_tracker_eval.update(i, success)
+                        terms = terms
+                        truncs = truncs
+                        step_return += rewards
+                    episodic_return.append(step_return)
+                task_returns.append(np.mean(episodic_return))
+        return task_returns, success_tracker_eval.overall_success_rate()
             
-        return np.asarray(policies_fitness), success_tracker_eval.overall_success_rate()
+    def get_fitness(self, pop: list):
+        pool = mp.Pool()
+        results = pool.starmap(self.eval, pop)
+        policies_fitness = [res[0] for res in results]  # receive from multi-process
+        success_rates = [res[1] for res in results]  # receive from multi-process
+        return np.asarray(policies_fitness), np.mean(success_rates)
 
 
     def select(self, pop: list, fitness: np.array) -> torch.nn.ModuleList:
@@ -145,8 +148,8 @@ class SLE_MTPPO():
 
 
     def mutate(self, child, mean=0.0, std=0.01):
-        if np.random.rand() < self.mutation_rate:
-            for module in child.modules():
+        for module in child.modules():
+            if np.random.rand() < self.mutation_rate:
                 if isinstance(module, nn.Linear) or isinstance(module, nn.Conv2d):
                     with torch.no_grad():
                         module.weight.add_(torch.randn(module.weight.size()) * std + mean)
@@ -211,16 +214,14 @@ class SLE_MTPPO():
     def train(self, env, policy):
         policy.train()
         policy = self.train_merging_stage(env, policy)
-        print(policy)
         important_indices = policy.shared_layers[2].important_indices()
         policy.shared_layers = nn.Sequential(
             compress_first_linear(policy.shared_layers[0], important_indices),
             nn.Tanh(),
             compress_final_linear(policy.shared_layers[-1], important_indices),
         )
-
+        
         policy, mean_episodic_return, episodic_success_rate, loss = self.train_finetune_stage(env, policy)
-        print(policy)
                 
         return policy, mean_episodic_return, episodic_success_rate, loss # a tuple of 4
                 
