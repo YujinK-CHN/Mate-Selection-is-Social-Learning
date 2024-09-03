@@ -80,6 +80,7 @@ class SLE_MTPPO():
         self.vf_coef = config['vf_coef']
         self.continuous = config['continuous']
         self.lr = config['lr']
+        self.num_tasks = len(env.tasks)
 
         # GA hyperparameters
         self.mutation_rate = 0.003
@@ -88,19 +89,19 @@ class SLE_MTPPO():
         self.fitness = None
     
     """ TRAINING LOGIC """
-    def get_fitness(self, pop: list) -> torch.FloatTensor:
+    def get_fitness(self, pop: list):
         policies_fitness = []
         for policy in pop:
             task_returns = []
-            success_tracker_eval = MultiTaskSuccessTracker(len(self.env.tasks))
+            success_tracker_eval = MultiTaskSuccessTracker(self.num_tasks)
             policy.eval()
             with torch.no_grad():
                 for i, task in enumerate(self.env.tasks):
                     # render 5 episodes out
                     episodic_return = []
-                    for episode in range(5):
+                    for episode in range(1):
                         next_obs, infos = task.reset()
-                        one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
+                        one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
                         terms = False
                         truncs = False
                         step_return = 0
@@ -124,11 +125,13 @@ class SLE_MTPPO():
                     task_returns.append(np.mean(episodic_return))
             policies_fitness.append(task_returns)
             
-        return torch.FloatTensor(policies_fitness)
+        return np.asarray(policies_fitness), success_tracker_eval.overall_success_rate()
 
 
     def select(self, pop: list, fitness: np.array) -> torch.nn.ModuleList:
-        return 0
+        idx = np.random.choice(np.arange(self.pop_size), size=self.pop_size, p=np.mean(fitness, axis=-1)/np.sum(np.mean(fitness, axis=-1)))
+        mates = [pop[i] for i in idx]
+        return mates, idx
 
 
     def crossover(self, parent1: torch.nn.Sequential, parent2: torch.nn.Sequential) -> torch.nn.Sequential:
@@ -208,7 +211,7 @@ class SLE_MTPPO():
     def train(self, env, policy):
         policy.train()
         policy = self.train_merging_stage(env, policy)
-
+        print(policy)
         important_indices = policy.shared_layers[2].important_indices()
         policy.shared_layers = nn.Sequential(
             compress_first_linear(policy.shared_layers[0], important_indices),
@@ -217,175 +220,43 @@ class SLE_MTPPO():
         )
 
         policy, mean_episodic_return, episodic_success_rate, loss = self.train_finetune_stage(env, policy)
+        print(policy)
                 
         return policy, mean_episodic_return, episodic_success_rate, loss # a tuple of 4
                 
 
     def train_merging_stage(self, env, policy):
 
-        policy = copy.deepcopy(policy)
+        policy = copy.deepcopy(policy).to(self.device)
         opt = optim.Adam(policy.non_gate_parameters(), lr=self.lr, eps=1e-8)
         opt_gate = optim.SGD(policy.gate_parameters(), lr=0.001, momentum=0.9)
         alpha = 0.01
 
-        rb_obs = torch.zeros((self.batch_size, self.obs_shape + len(env.tasks))).to(self.device)
+        # clear memory
+        rb_obs = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), self.obs_shape + len(self.env.tasks))).to(self.device)
         if self.continuous == True:
-            rb_actions = torch.zeros((self.batch_size, env.action_space.shape[0])).to(self.device)
+            rb_actions = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), self.env.action_space.shape[0])).to(self.device)
         else:
-            rb_actions = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_logprobs = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_rewards = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_advantages = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_terms = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_values = torch.zeros((self.batch_size, 1)).to(self.device)
+            rb_actions = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device) # [10, 10000, 1] if batch size 100000. 10000 = 500 * 20
+        rb_logprobs = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+        rb_rewards = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+        rb_advantages = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+        rb_terms = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+        rb_values = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
 
         # sampling
-        index = 0
+            
         task_returns = []
-        success_tracker = MultiTaskSuccessTracker(len(env.tasks))
+        success_tracker = MultiTaskSuccessTracker(self.num_tasks)
         with torch.no_grad():
             for i, task in enumerate(env.tasks): # 10
+                index = 0
                 episodic_return = []
-                for epoch in range(int((self.batch_size / len(env.tasks)) / self.max_cycles)): 
+                for epoch in range(int((self.batch_size / self.num_tasks) / self.max_cycles)): # 20
                     next_obs, infos = task.reset()
-                    one_hot_id = torch.diag(torch.ones(len(env.tasks)))[i]
+                    one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
                     step_return = 0
-                    
                     for step in range(0, self.max_cycles): # 500
-                        # rollover the observation 
-                        #obs = batchify_obs(next_obs, self.device)
-                        obs = torch.FloatTensor(next_obs)
-                        obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
-
-                        # get actions from skills
-                        actions, logprobs, entropy, values = policy.act(obs)
-
-                        # execute the environment and log data
-                        next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
-                        success = infos.get('success', False)
-                        success_tracker.update(i, success)
-
-                        # add to episode storage
-                        rb_obs[index] = obs
-                        rb_rewards[index] = rewards
-                        rb_terms[index] = terms
-                        rb_actions[index] = actions
-                        rb_logprobs[index] = logprobs
-                        rb_values[index] = values.flatten()
-                        # compute episodic return
-                        step_return += rb_rewards[index].cpu().numpy()
-
-                        # if we reach termination or truncation, end
-                        index += 1
-                        if terms or truncs:
-                            break
-
-                    episodic_return.append(step_return)
-
-                    # skills advantage
-                    gae = 0
-                    for t in range(index-2, (index-self.max_cycles)-1, -1):
-                        delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
-                        gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
-                        rb_advantages[t] = gae
-
-                task_returns.append(np.mean(episodic_return))
-                            
-        rb_returns = rb_advantages + rb_values
-
-        # Optimizing the policy and value network
-         
-        rb_index = np.arange(rb_obs.shape[0])
-        for epoch in range(self.epoch_merging):
-            alpha += 0.05 * np.sqrt(alpha)
-            # shuffle the indices we use to access the data
-            np.random.shuffle(rb_index)
-            for start in range(0, rb_obs.shape[0], self.min_batch):
-                # select the indices we want to train on
-                end = start + self.min_batch
-                batch_index = rb_index[start:end]
-
-                if self.continuous == True:
-                    old_actions = rb_actions.long()[batch_index, :]
-                else:
-                    old_actions = rb_actions.long()[batch_index, :]
-                _, newlogprob, entropy, values = policy.evaluate(
-                    x = rb_obs[batch_index, :],
-                    actions = old_actions
-                )
-                        
-                logratio = newlogprob.unsqueeze(-1) - rb_logprobs
-                ratio = logratio.exp()
-
-                # normalize advantaegs
-                advantages = rb_advantages
-                advantages = (advantages - advantages.mean()) / (
-                    advantages.std() + 1e-8
-                )
-
-                # Policy loss
-                pg_loss1 = -rb_advantages * ratio
-                pg_loss2 = -rb_advantages * torch.clamp(
-                    ratio, 1 - self.clip_coef, 1 + self.clip_coef
-                )
-                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
-
-                # Value loss
-                v_loss_unclipped = (values - rb_returns) ** 2
-                v_clipped = rb_values + torch.clamp(
-                    values - rb_values,
-                    -self.clip_coef,
-                    self.clip_coef,
-                )
-                v_loss_clipped = (v_clipped - rb_returns) ** 2
-                v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                v_loss = 0.5 * v_loss_max.mean()
-
-                entropy_loss = entropy.max()
-                loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
-
-                l0_loss = alpha * policy.shared_layers[2].l0_loss()
-                # print(l0_loss)
-
-                loss = loss + l0_loss
-
-                opt.zero_grad()
-                opt_gate.zero_grad()
-                loss.backward()
-                opt.step()
-                opt_gate.step()
-        
-        return policy
-
-    def train_finetune_stage(self, env, policy):
-
-        policy = copy.deepcopy(policy)
-        opt = optim.Adam(policy.parameters(), lr=self.lr, eps=1e-8)
-
-        rb_obs = torch.zeros((self.batch_size, self.obs_shape + len(env.tasks))).to(self.device)
-        if self.continuous == True:
-            rb_actions = torch.zeros((self.batch_size, env.action_space.shape[0])).to(self.device)
-        else:
-            rb_actions = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_logprobs = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_rewards = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_advantages = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_terms = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_values = torch.zeros((self.batch_size, 1)).to(self.device)
-
-        # sampling
-        index = 0
-        task_returns = []
-        success_tracker = MultiTaskSuccessTracker(len(env.tasks))
-        with torch.no_grad():
-            for i, task in enumerate(env.tasks): # 10
-                episodic_return = []
-                for epoch in range(int((self.batch_size / len(env.tasks)) / self.max_cycles)): 
-                    next_obs, infos = task.reset()
-                    one_hot_id = torch.diag(torch.ones(len(env.tasks)))[i]
-                    step_return = 0
-                    
-                    for step in range(0, self.max_cycles):
                         # rollover the observation 
                         # obs = batchify_obs(next_obs, self.device)
                         obs = torch.FloatTensor(next_obs)
@@ -400,86 +271,246 @@ class SLE_MTPPO():
                         success_tracker.update(i, success)
 
                         # add to episode storage
-                        rb_obs[index] = obs
-                        rb_rewards[index] = rewards
-                        rb_terms[index] = terms
-                        rb_actions[index] = actions
-                        rb_logprobs[index] = logprobs
-                        rb_values[index] = values.flatten()
+                        rb_obs[i, index] = obs
+                        rb_rewards[i, index] = rewards
+                        rb_terms[i, index] = terms
+                        rb_actions[i, index] = actions
+                        rb_logprobs[i, index] = logprobs
+                        rb_values[i, index] = values.flatten()
                         # compute episodic return
-                        step_return += rb_rewards[index].cpu().numpy()
+                        step_return += rb_rewards[i, index].cpu().numpy()
 
                         # if we reach termination or truncation, end
                         index += 1
                         if terms or truncs:
                             break
-
+                            
 
                     episodic_return.append(step_return)
 
                     # skills advantage
                     gae = 0
                     for t in range(index-2, (index-self.max_cycles)-1, -1):
-                        delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
-                        gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
-                        rb_advantages[t] = gae
+                        delta = rb_rewards[i, t] + self.discount * rb_values[i, t + 1] * rb_terms[i, t + 1] - rb_values[i, t]
+                        gae = delta + self.discount * self.gae_lambda * rb_terms[i, t] * gae
+                        rb_advantages[i, t] = gae
 
                 task_returns.append(np.mean(episodic_return))
-                            
+                                
         rb_returns = rb_advantages + rb_values
 
         # Optimizing the policy and value network
          
-        rb_index = np.arange(rb_obs.shape[0])
-        for epoch in range(self.epoch_finetune): # 256
+        rb_index = np.arange(rb_obs.shape[1])
+        clip_fracs = []
+        for epoch in range(self.epoch_opt): # 256
             # shuffle the indices we use to access the data
             np.random.shuffle(rb_index)
-            for start in range(0, rb_obs.shape[0], self.min_batch):
-                # select the indices we want to train on
+            alpha += 0.05 * np.sqrt(alpha)
+            for start in range(0, rb_obs.shape[1], self.min_batch):
+                task_losses = torch.zeros(self.num_tasks)
                 end = start + self.min_batch
                 batch_index = rb_index[start:end]
-
-                if self.continuous == True:
-                    old_actions = rb_actions.long()[batch_index, :]
-                else:
-                    old_actions = rb_actions.long()[batch_index, :]
-                _, newlogprob, entropy, values = policy.evaluate(
-                    x = rb_obs[batch_index, :],
-                    actions = old_actions
-                )
+                for i, task in enumerate(env.tasks): # 10
+                    # select the indices we want to train on
+                    if self.continuous == True:
+                        old_actions = rb_actions.long()[i, batch_index, :]
+                    else:
+                        old_actions = rb_actions.long()[i, batch_index, :]
+                    _, newlogprob, entropy, values = policy.evaluate(
+                        x = rb_obs[i, batch_index, :],
+                        actions = old_actions
+                    )
                         
-                logratio = newlogprob.unsqueeze(-1) - rb_logprobs
-                ratio = logratio.exp()
+                    logratio = newlogprob.unsqueeze(-1) - rb_logprobs[i, batch_index, :]
+                    ratio = logratio.exp()
 
-                # normalize advantaegs
-                advantages = rb_advantages
-                advantages = (advantages - advantages.mean()) / (
-                    advantages.std() + 1e-8
-                )
+                    with torch.no_grad():
+                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
+                        old_approx_kl = (-logratio).mean()
+                        approx_kl = ((ratio - 1) - logratio).mean()
+                        clip_fracs += [
+                            ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
+                        ]
 
-                # Policy loss
-                pg_loss1 = -rb_advantages * ratio
-                pg_loss2 = -rb_advantages * torch.clamp(
-                    ratio, 1 - self.clip_coef, 1 + self.clip_coef
-                )
-                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+                    # normalize advantaegs
+                    advantages = rb_advantages[i, batch_index, :]
+                    advantages = (advantages - advantages.mean()) / (
+                        advantages.std() + 1e-8
+                    )
 
-                # Value loss
-                v_loss_unclipped = (values - rb_returns) ** 2
-                v_clipped = rb_values + torch.clamp(
-                    values - rb_values,
-                    -self.clip_coef,
-                    self.clip_coef,
-                )
-                v_loss_clipped = (v_clipped - rb_returns) ** 2
-                v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                v_loss = 0.5 * v_loss_max.mean()
+                    # Policy loss
+                    pg_loss1 = -rb_advantages[i, batch_index, :] * ratio
+                    pg_loss2 = -rb_advantages[i, batch_index, :] * torch.clamp(
+                        ratio, 1 - self.clip_coef, 1 + self.clip_coef
+                    )
+                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
-                entropy_loss = entropy.max()
-                loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
+                    # Value loss
+                    v_loss_unclipped = (values - rb_returns[i, batch_index, :]) ** 2
+                    v_clipped = rb_values[i, batch_index, :] + torch.clamp(
+                        values - rb_values[i, batch_index, :],
+                        -self.clip_coef,
+                        self.clip_coef,
+                    )
+                    v_loss_clipped = (v_clipped - rb_returns[i, batch_index, :]) ** 2
+                    v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                    v_loss = 0.5 * v_loss_max.mean()
+
+                    entropy_loss = entropy.max()
+                    loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
+
+                    l0_loss = alpha * policy.shared_layers[2].l0_loss()
+                    # print(l0_loss)
+
+                    loss = loss + l0_loss
+
+                    task_losses[i] = loss
 
                 opt.zero_grad()
-                loss.backward()
+                opt_gate.zero_grad()
+                torch.mean(task_losses).backward()
+                opt.step()
+                opt_gate.step()
+        
+        return policy
+
+    def train_finetune_stage(self, env, policy):
+
+        policy = copy.deepcopy(policy).to(self.device)
+        opt = optim.Adam(policy.parameters(), lr=self.lr, eps=1e-8)
+
+        # clear memory
+        rb_obs = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), self.obs_shape + self.num_tasks)).to(self.device)
+        if self.continuous == True:
+            rb_actions = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), self.env.action_space.shape[0])).to(self.device)
+        else:
+            rb_actions = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device) # [10, 10000, 1] if batch size 100000. 10000 = 500 * 20
+        rb_logprobs = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+        rb_rewards = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+        rb_advantages = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+        rb_terms = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+        rb_values = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+
+        # sampling
+            
+        task_returns = []
+        success_tracker = MultiTaskSuccessTracker(self.num_tasks)
+        with torch.no_grad():
+            for i, task in enumerate(self.env.tasks): # 10
+                index = 0
+                episodic_return = []
+                for epoch in range(int((self.batch_size / self.num_tasks) / self.max_cycles)): # 20
+                    next_obs, infos = task.reset()
+                    one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
+                    step_return = 0
+                    for step in range(0, self.max_cycles): # 500
+                        # rollover the observation 
+                        # obs = batchify_obs(next_obs, self.device)
+                        obs = torch.FloatTensor(next_obs)
+                        obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
+
+                        # get actions from skills
+                        actions, logprobs, entropy, values = policy.act(obs)
+
+                        # execute the environment and log data
+                        next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
+                        success = infos.get('success', False)
+                        success_tracker.update(i, success)
+
+                        # add to episode storage
+                        rb_obs[i, index] = obs
+                        rb_rewards[i, index] = rewards
+                        rb_terms[i, index] = terms
+                        rb_actions[i, index] = actions
+                        rb_logprobs[i, index] = logprobs
+                        rb_values[i, index] = values.flatten()
+                        # compute episodic return
+                        step_return += rb_rewards[i, index].cpu().numpy()
+
+                        # if we reach termination or truncation, end
+                        index += 1
+                        if terms or truncs:
+                            break
+                            
+
+                    episodic_return.append(step_return)
+
+                    # skills advantage
+                    gae = 0
+                    for t in range(index-2, (index-self.max_cycles)-1, -1):
+                        delta = rb_rewards[i, t] + self.discount * rb_values[i, t + 1] * rb_terms[i, t + 1] - rb_values[i, t]
+                        gae = delta + self.discount * self.gae_lambda * rb_terms[i, t] * gae
+                        rb_advantages[i, t] = gae
+
+                task_returns.append(np.mean(episodic_return))
+                                
+        rb_returns = rb_advantages + rb_values
+
+        # Optimizing the policy and value network
+         
+        rb_index = np.arange(rb_obs.shape[1])
+        clip_fracs = []
+        for epoch in range(self.epoch_opt): # 256
+            # shuffle the indices we use to access the data
+            np.random.shuffle(rb_index)
+            for start in range(0, rb_obs.shape[1], self.min_batch):
+                task_losses = torch.zeros(self.num_tasks)
+                end = start + self.min_batch
+                batch_index = rb_index[start:end]
+                for i, task in enumerate(self.env.tasks): # 10
+                    # select the indices we want to train on
+                    if self.continuous == True:
+                        old_actions = rb_actions.long()[i, batch_index, :]
+                    else:
+                        old_actions = rb_actions.long()[i, batch_index, :]
+                    _, newlogprob, entropy, values = policy.evaluate(
+                        x = rb_obs[i, batch_index, :],
+                        actions = old_actions
+                    )
+                        
+                    logratio = newlogprob.unsqueeze(-1) - rb_logprobs[i, batch_index, :]
+                    ratio = logratio.exp()
+
+                    with torch.no_grad():
+                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
+                        old_approx_kl = (-logratio).mean()
+                        approx_kl = ((ratio - 1) - logratio).mean()
+                        clip_fracs += [
+                            ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
+                        ]
+
+                    # normalize advantaegs
+                    advantages = rb_advantages[i, batch_index, :]
+                    advantages = (advantages - advantages.mean()) / (
+                        advantages.std() + 1e-8
+                    )
+
+                    # Policy loss
+                    pg_loss1 = -rb_advantages[i, batch_index, :] * ratio
+                    pg_loss2 = -rb_advantages[i, batch_index, :] * torch.clamp(
+                        ratio, 1 - self.clip_coef, 1 + self.clip_coef
+                    )
+                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
+                    # Value loss
+                    v_loss_unclipped = (values - rb_returns[i, batch_index, :]) ** 2
+                    v_clipped = rb_values[i, batch_index, :] + torch.clamp(
+                        values - rb_values[i, batch_index, :],
+                        -self.clip_coef,
+                        self.clip_coef,
+                    )
+                    v_loss_clipped = (v_clipped - rb_returns[i, batch_index, :]) ** 2
+                    v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                    v_loss = 0.5 * v_loss_max.mean()
+
+                    entropy_loss = entropy.max()
+                    loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
+
+                    task_losses[i] = loss
+
+                opt.zero_grad()
+                torch.mean(task_losses).backward()
                 opt.step()
         
         return policy, np.mean(task_returns), success_tracker.overall_success_rate(), loss.item()

@@ -53,13 +53,13 @@ if __name__ == "__main__":
     config = {
         'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         'continuous': True,
-        'pop_size': 8,
+        'pop_size': 3,
         'ent_coef': 5e-3,
         'vf_coef': 0.1,
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
-        'batch_size': 100000,
+        'batch_size': 5000,
         'max_path_length': 500,
         'min_batch': 32,
         'epoch_merging': 4,
@@ -129,5 +129,5 @@ if __name__ == "__main__":
     plt.show()
     """
 
-    training(config, mtppo2)
+    training(config, sle)
     
