@@ -67,6 +67,7 @@ class MTPPO():
         self.ent_coef = config['ent_coef']
         self.vf_coef = config['vf_coef']
         self.continuous = config['continuous']
+        self.num_tasks = len(env.tasks)
     
     """ TRAINING LOGIC """
     
