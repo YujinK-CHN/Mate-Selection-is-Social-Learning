@@ -125,7 +125,7 @@ class SLE_MTPPO():
             
     def get_fitness(self, pop: list):
         pool = mp.Pool()
-        results = pool.starmap(self.eval, pop)
+        results = pool.map(self.eval, pop)
         policies_fitness = [res[0] for res in results]  # receive from multi-process
         success_rates = [res[1] for res in results]  # receive from multi-process
         return np.asarray(policies_fitness), np.mean(success_rates)
@@ -220,7 +220,7 @@ class SLE_MTPPO():
             nn.Tanh(),
             compress_final_linear(policy.shared_layers[-1], important_indices),
         )
-        
+
         policy, mean_episodic_return, episodic_success_rate, loss = self.train_finetune_stage(env, policy)
                 
         return policy, mean_episodic_return, episodic_success_rate, loss # a tuple of 4
