@@ -32,8 +32,8 @@ class MultiTaskPolicy(nn.Module):
         self.critic = nn.Sequential(
             nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size),
             nn.Tanh(),
-            #nn.Linear(hidden_size, hidden_size),
-            #nn.Tanh(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.Tanh(),
             nn.Linear(hidden_size, 1)
         )
         

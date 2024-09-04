@@ -59,12 +59,12 @@ if __name__ == "__main__":
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
-        'batch_size': 5000,
+        'batch_size': 50000,
         'max_path_length': 500,
         'min_batch': 32,
         'epoch_merging': 4,
         'epoch_finetune': 8,
-        'epoch_opt': 16,
+        'epoch_opt': 8,
         'total_episodes': 200,
         'hidden_size': 512,
         'lr': 0.0005
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     mtsac2 = MultiTaskSAC(multi_task_env_42, config_mtsac)
     mtsac3 = MultiTaskSAC(multi_task_env_100, config_mtsac)
     seeds_sac = [mtsac1, mtsac2, mtsac3]
-    '''
+    ''''''
     pool = mp.Pool()
     process_inputs = [(config, seeds_ppo[i]) for i in range(len(seeds_ppo))]
     results = pool.starmap(training, process_inputs)
@@ -128,9 +128,9 @@ if __name__ == "__main__":
 
     plt.plot(x, y)
     plt.show()
-    '''
+    
 
-    training(config_mtsac, mtsac2)
+    #training(config_mtsac, mtsac2)
     #training(config, mtppo2)
     #training(config, sle)
     
