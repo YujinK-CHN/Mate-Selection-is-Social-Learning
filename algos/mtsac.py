@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from collections import deque
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from policies.multitask_policy import TaskConditionedNetwork, TaskConditionedPolicyNetwork
 
@@ -36,6 +36,8 @@ class MultiTaskSAC:
     def __init__(
         self, envs, config
     ):
+        self.name = 'mtsac'
+        self.device = config['device']
         self.envs = envs
         self.state_dim = self.envs.observation_space.shape[0]
         self.action_dim = self.envs.action_space.shape[0]
@@ -52,18 +54,20 @@ class MultiTaskSAC:
         self.gradient_steps_per_itr = config['gradient_steps_per_itr']
         self.min_buffer_size = config['min_buffer_size']
         self.use_automatic_entropy_tuning = config['use_automatic_entropy_tuning']
-        self.epoch_cycles = config['epoch_cycles']
-        self.num_epochs = config['num_epochs']
+        self.epoch_opt = config['epoch_opt']
+        self.total_episodes = config['total_episodes']
         self.max_path_length = config['max_path_length']
+        self.continuous = True
+        self.min_batch = 32
 
         self.seed = envs.seed
         self.num_tasks = len(envs.tasks)
         self.hidden_nonlinearity = nn.ReLU
-        self.policy_net = TaskConditionedPolicyNetwork(self.state_dim, self.action_dim, self.num_tasks, self.hidden_sizes, self.hidden_nonlinearity, self.min_std, self.max_std)
-        self.qf1_net = TaskConditionedNetwork(self.state_dim + self.action_dim + self.num_tasks, 1, self.hidden_sizes, self.hidden_nonlinearity)
-        self.qf2_net = TaskConditionedNetwork(self.state_dim + self.action_dim + self.num_tasks, 1, self.hidden_sizes, self.hidden_nonlinearity)
-        self.qf1_target = TaskConditionedNetwork(self.state_dim + self.action_dim + self.num_tasks, 1, self.hidden_sizes, self.hidden_nonlinearity)
-        self.qf2_target = TaskConditionedNetwork(self.state_dim + self.action_dim + self.num_tasks, 1, self.hidden_sizes, self.hidden_nonlinearity)
+        self.policy_net = TaskConditionedPolicyNetwork(self.state_dim, self.action_dim, self.num_tasks, self.hidden_sizes, self.hidden_nonlinearity, self.min_std, self.max_std).to(self.device)
+        self.qf1_net = TaskConditionedNetwork(self.state_dim + self.action_dim + self.num_tasks, 1, self.hidden_sizes, self.hidden_nonlinearity).to(self.device)
+        self.qf2_net = TaskConditionedNetwork(self.state_dim + self.action_dim + self.num_tasks, 1, self.hidden_sizes, self.hidden_nonlinearity).to(self.device)
+        self.qf1_target = TaskConditionedNetwork(self.state_dim + self.action_dim + self.num_tasks, 1, self.hidden_sizes, self.hidden_nonlinearity).to(self.device)
+        self.qf2_target = TaskConditionedNetwork(self.state_dim + self.action_dim + self.num_tasks, 1, self.hidden_sizes, self.hidden_nonlinearity).to(self.device)
 
         self.qf1_target.load_state_dict(self.qf1_net.state_dict())
         self.qf2_target.load_state_dict(self.qf2_net.state_dict())
@@ -71,7 +75,6 @@ class MultiTaskSAC:
         self.policy_optimizer = optim.Adam(self.policy_net.parameters(), lr=self.policy_lr)
         self.qf1_optimizer = optim.Adam(self.qf1_net.parameters(), lr=self.qf_lr)
         self.qf2_optimizer = optim.Adam(self.qf2_net.parameters(), lr=self.qf_lr)
-        self.replay_buffer = deque(maxlen=self.buffer_capacity)
 
         if self.use_automatic_entropy_tuning:
             self.log_alpha = torch.zeros(1, requires_grad=True)
@@ -80,120 +83,152 @@ class MultiTaskSAC:
         else:
             self.alpha = 0.2
 
-
-    def select_action(self, state, task_id):
-        task_embedding = torch.eye(self.num_tasks)[task_id].unsqueeze(0)  # One-hot encoding
-        state = torch.FloatTensor(state).unsqueeze(0)
-        action, _ = self.policy_net.sample(state, task_embedding)
-        return action.detach().cpu().numpy()[0]
-
-    def store_transition(self, transition):
-        self.replay_buffer.append(transition)
-
-    def sample_batch(self):
-        batch = np.random.choice(len(self.replay_buffer), self.batch_size)
-        state, action, reward, next_state, done, task_id = zip(*[self.replay_buffer[idx] for idx in batch])
-        task_embedding = torch.eye(self.num_tasks)[torch.LongTensor(task_id)]
-        return (
-            torch.FloatTensor(state),
-            torch.FloatTensor(action),
-            torch.FloatTensor(reward).unsqueeze(1),
-            torch.FloatTensor(next_state),
-            torch.FloatTensor(done).unsqueeze(1),
-            task_embedding
-        )
+ 
 
     def train(self):
         y1 = []
         y2 = []
         y3 = []
-        for epoch in range(self.num_epochs):
-            cycle_returns = []
-            success_tracker = MultiTaskSuccessTracker(len(self.env.tasks))
-            for _ in range(self.epoch_cycles):
-                task_returns = []
-                for task_id, env in enumerate(self.envs.tasks):
-                    state = env.reset()
-                    task_embedding = torch.eye(self.num_tasks)[task_id]
-                    step_return = 0
-                    for _ in range(self.max_path_length):
-                        action = self.select_action(state, task_id)
-                        next_state, reward, done, truncs, info= env.step(action)
-                        success = info.get('success', False)
-                        success_tracker.update(task_id, success)
-                        self.store_transition((state, action, reward, next_state, done, task_id))
+        for episode in range(self.total_episodes):
+            self.policy_net.train()
+            self.qf1_net.train()
+            self.qf2_net.train()
+            # clear memory
+            rb_obs = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), self.state_dim + len(self.envs.tasks)), requires_grad=True).to(self.device)
+            rb_next_obs = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), self.state_dim + len(self.envs.tasks)), requires_grad=True).to(self.device)
+            if self.continuous == True:
+                rb_actions = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), self.action_dim)).to(self.device)
+            else:
+                rb_actions = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device) # [10, 10000, 1] if batch size 100000. 10000 = 500 * 20
+            rb_logprobs = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+            rb_rewards = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+            rb_advantages = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+            rb_terms = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
+            rb_values = torch.zeros((self.num_tasks, int(self.batch_size / self.num_tasks), 1)).to(self.device)
 
-                        state = next_state
-                        step_return += reward
+            # sampling
+            
+            task_returns = []
+            success_tracker = MultiTaskSuccessTracker(self.num_tasks)
+            with torch.no_grad():
+                for i, task in enumerate(self.envs.tasks): # 10
+                    index = 0
+                    episodic_return = []
+                    for epoch in range(int((self.batch_size / self.num_tasks) / 500)): # 20
+                        next_obs, infos = task.reset()
+                        one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
+                        step_return = 0
+                        for step in range(0, 500): # 500
+                            # rollover the observation 
+                            # obs = batchify_obs(next_obs, self.device)
+                            obs = torch.FloatTensor(next_obs)
+                            obs = torch.cat((obs, one_hot_id), dim=-1).to(self.device)
+                            obs = obs.requires_grad_()
+
+                            # get actions from skills
+                            actions, logprobs = self.policy_net.sample(obs)
+
+                            # execute the environment and log data
+                            next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
+                            success = infos.get('success', False)
+                            success_tracker.update(i, success)
+
+                            # add to episode storage
+                            rb_obs[i, index] = obs
+                            rb_next_obs[i, index] = torch.cat((torch.FloatTensor(next_obs), one_hot_id), dim=-1)
+                            rb_rewards[i, index] = rewards
+                            rb_terms[i, index] = terms
+                            rb_actions[i, index] = actions
+                            rb_logprobs[i, index] = logprobs
+                            # compute episodic return
+                            step_return += rb_rewards[i, index].cpu().numpy()
+
+                            # if we reach termination or truncation, end
+                            index += 1
+                            if terms or truncs:
+                                break
+                            
+
+                        episodic_return.append(step_return)
+
+                rb_index = np.arange(rb_obs.shape[1])
+                
+                for epoch in range(self.epoch_opt):
+                    # shuffle the indices we use to access the data
+                    np.random.shuffle(rb_index)
+                    for start in range(self.gradient_steps_per_itr):
+                        end = start + self.min_batch
+                        batch_index = rb_index[start:end]
+                        for i, task in enumerate(self.envs.tasks): # 10
+
+                            # Update Q-functions
+                            with torch.no_grad():
+                                next_action, log_prob = self.policy_net.sample(rb_next_obs[i, batch_index, :])
+                                qf1_next_target = self.qf1_target(torch.cat((rb_next_obs[i, batch_index, :], next_action), dim=-1))
+                                qf2_next_target = self.qf2_target(torch.cat((rb_next_obs[i, batch_index, :], next_action), dim=-1))
+                                min_qf_next_target = torch.min(qf1_next_target, qf2_next_target)
+                                next_q_value = rb_rewards[i, batch_index, :] + (1 - rb_terms[i, batch_index, :]) * self.gamma * (min_qf_next_target - log_prob)
+                            
                         
-                        if done:
-                            break
-                    task_returns.append(step_return)
-                cycle_returns.append(np.mean(task_returns))
+                            qf1 = self.qf1_net(torch.cat((rb_next_obs[i, batch_index, :], next_action), dim=-1))
+                            qf2 = self.qf2_net(torch.cat((rb_next_obs[i, batch_index, :], next_action), dim=-1))
+                            qf1 = qf1.requires_grad_()
+                            qf2 = qf2.requires_grad_()
+                            next_q_value = next_q_value.requires_grad_()
 
-                if len(self.replay_buffer) < self.batch_size:
-                    return
+                            qf1_loss = F.mse_loss(qf1, next_q_value)
+                            qf2_loss = F.mse_loss(qf2, next_q_value)
 
-                for _ in range(self.gradient_steps_per_itr):
-                    state, action, reward, next_state, done, task_embedding = self.sample_batch()
+                            qf1_loss = qf1_loss.requires_grad_()
+                            qf2_loss = qf2_loss.requires_grad_()
 
-                    # Update Q-functions
-                    with torch.no_grad():
-                        next_action, log_prob = self.policy_net.sample(next_state, task_embedding)
-                        qf1_next_target = self.qf1_target(next_state, torch.cat([next_action, task_embedding], dim=1))
-                        qf2_next_target = self.qf2_target(next_state, torch.cat([next_action, task_embedding], dim=1))
-                        min_qf_next_target = torch.min(qf1_next_target, qf2_next_target)
-                        next_q_value = reward + (1 - done) * self.gamma * (min_qf_next_target - log_prob)
+                            
+                            self.qf1_optimizer.zero_grad()
+                            qf1_loss.backward()
+                            self.qf1_optimizer.step()
 
-                    qf1 = self.qf1_net(state, torch.cat([action, task_embedding], dim=1))
-                    qf2 = self.qf2_net(state, torch.cat([action, task_embedding], dim=1))
+                            self.qf2_optimizer.zero_grad()
+                            qf2_loss.backward()
+                            self.qf2_optimizer.step()
 
-                    qf1_loss = nn.MSELoss()(qf1, next_q_value)
-                    qf2_loss = nn.MSELoss()(qf2, next_q_value)
+                            # Update policy network
+                            pi, log_prob = self.policy_net.sample(rb_obs[i, batch_index, :])
+                            qf1_pi = self.qf1_net(torch.cat((rb_next_obs[i, batch_index, :], pi), dim=-1))
+                            qf2_pi = self.qf2_net(torch.cat((rb_next_obs[i, batch_index, :], pi), dim=-1))
+                            min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
-                    self.qf1_optimizer.zero_grad()
-                    qf1_loss.backward()
-                    self.qf1_optimizer.step()
+                            if hasattr(self, 'log_alpha'):
+                                self.log_alpha = self.log_alpha.to(self.device)
+                                alpha_loss = -(self.log_alpha * (log_prob + self.target_entropy)).mean()
+                                alpha_loss = alpha_loss.requires_grad_()
+                                self.alpha_optimizer.zero_grad()
+                                alpha_loss.backward()
+                                self.alpha_optimizer.step()
+                                alpha = self.log_alpha.exp()
+                            else:
+                                alpha = self.alpha
 
-                    self.qf2_optimizer.zero_grad()
-                    qf2_loss.backward()
-                    self.qf2_optimizer.step()
+                            policy_loss = (alpha * log_prob - min_qf_pi).mean()
+                            policy_loss = policy_loss.requires_grad_()
 
-                    # Update policy network
-                    pi, log_prob = self.policy_net.sample(state, task_embedding)
-                    qf1_pi = self.qf1_net(state, torch.cat([pi, task_embedding], dim=1))
-                    qf2_pi = self.qf2_net(state, torch.cat([pi, task_embedding], dim=1))
-                    min_qf_pi = torch.min(qf1_pi, qf2_pi)
+                            self.policy_optimizer.zero_grad()
+                            policy_loss.backward()
+                            self.policy_optimizer.step()
 
-                    if hasattr(self, 'log_alpha'):
-                        alpha_loss = -(self.log_alpha * (log_prob + self.target_entropy).detach()).mean()
-                        self.alpha_optimizer.zero_grad()
-                        alpha_loss.backward()
-                        self.alpha_optimizer.step()
-                        alpha = self.log_alpha.exp()
-                    else:
-                        alpha = self.alpha
+                            # Soft update target networks
+                            with torch.no_grad():
+                                for target_param, param in zip(self.qf1_target.parameters(), self.qf1_net.parameters()):
+                                    target_param.data.mul_(1 - self.tau)
+                                    target_param.data.add_(self.tau * param.data)
 
-                    policy_loss = (alpha * log_prob - min_qf_pi).mean()
-
-                    self.policy_optimizer.zero_grad()
-                    policy_loss.backward()
-                    self.policy_optimizer.step()
-
-                    # Soft update target networks
-                    with torch.no_grad():
-                        for target_param, param in zip(self.qf1_target.parameters(), self.qf1_net.parameters()):
-                            target_param.data.mul_(1 - self.tau)
-                            target_param.data.add_(self.tau * param.data)
-
-                        for target_param, param in zip(self.qf2_target.parameters(), self.qf2_net.parameters()):
-                            target_param.data.mul_(1 - self.tau)
-                            target_param.data.add_(self.tau * param.data)
+                                for target_param, param in zip(self.qf2_target.parameters(), self.qf2_net.parameters()):
+                                    target_param.data.mul_(1 - self.tau)
+                                    target_param.data.add_(self.tau * param.data)
 
             mean_eval_return, mean_success_rate = self.eval()
             print(f"Training episode {epoch}")
             print(f"Training seed {self.seed}")
-            print(f"Episodic Return: {np.mean(cycle_returns)}")
+            print(f"Episodic Return: {np.mean(task_returns)}")
             print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
             print(f"Evaluation Return: {mean_eval_return}")
             print(f"Evaluation success rate: {mean_success_rate}")

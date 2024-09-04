@@ -9,4 +9,8 @@ def training(config, algo):
         algo.evolve()
         algo.save(f"./models/{config['hidden_size']}_{config['batch_size']}_{config['epoch_opt']}_{config['total_episodes']}_seed{algo.seed}.pt")
 
+    if algo.name == 'mtsac':
+        x, y = algo.train()
+        algo.save(f"./models/{config['hidden_size']}_{config['batch_size']}_{config['epoch_opt']}_{config['total_episodes']}_seed{algo.seed}.pt")
+
     

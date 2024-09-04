@@ -210,7 +210,7 @@ class MTPPO():
                         task_losses[i] = loss
 
                     self.opt.zero_grad()
-                    torch.mean(task_losses).backward()
+                    torch.sum(task_losses).backward()
                     self.opt.step()
 
             eval_return, mean_success_rate = self.eval()

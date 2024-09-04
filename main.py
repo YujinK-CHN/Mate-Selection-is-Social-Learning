@@ -30,7 +30,7 @@ def create_metaworld(seed):
 
 class MultiTaskEnv():
     def __init__(self, seed):
-        self.tasks = create_metaworld(seed) # [task1, task2]
+        self.tasks = create_metaworld(seed)[:5] # [task1, task2]
         self.current_task = None
         self.observation_space = self.tasks[0].observation_space
         self.action_space = self.tasks[0].action_space
@@ -71,6 +71,7 @@ if __name__ == "__main__":
     }
 
     config_mtsac = {
+        'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         'hidden_dim': (400, 400),  # from hidden_sizes
         'discount': 0.99,  # discount
         'tau': 5e-3,  # target_update_tau
@@ -82,8 +83,8 @@ if __name__ == "__main__":
         'min_std': -20,  # min_std
         'max_std':  2,  # max_std
         'gradient_steps_per_itr': 500,  # gradient_steps_per_itr
-        'epoch_cycles': 200,
-        'num_epochs': 500,
+        'epoch_opt': 200,
+        'total_episodes': 500,
         'min_buffer_size': 1500,  # min_buffer_size
         'use_automatic_entropy_tuning': True,  # use_automatic_entropy_tuning
         'max_path_length': 500
@@ -107,12 +108,12 @@ if __name__ == "__main__":
     mtppo3 = MTPPO(multi_task_env_100, config)
     seeds_ppo = [mtppo1, mtppo2, mtppo3]
 
-    """ MTSAC SETUP 
+    """ MTSAC SETUP """
     mtsac1 = MultiTaskSAC(multi_task_env_0, config_mtsac)
     mtsac2 = MultiTaskSAC(multi_task_env_42, config_mtsac)
     mtsac3 = MultiTaskSAC(multi_task_env_100, config_mtsac)
     seeds_sac = [mtsac1, mtsac2, mtsac3]
-    
+    '''
     pool = mp.Pool()
     process_inputs = [(config, seeds_ppo[i]) for i in range(len(seeds_ppo))]
     results = pool.starmap(training, process_inputs)
@@ -127,7 +128,9 @@ if __name__ == "__main__":
 
     plt.plot(x, y)
     plt.show()
-    """
+    '''
 
-    training(config, sle)
+    training(config_mtsac, mtsac2)
+    #training(config, mtppo2)
+    #training(config, sle)
     

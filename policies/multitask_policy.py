@@ -80,51 +80,44 @@ class MultiTaskPolicy(nn.Module):
 ##########################################
 
 
-
-class MLP(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_sizes=(400, 400), hidden_nonlinearity=nn.ReLU):
-        super(MLP, self).__init__()
-        layers = []
-        prev_size = input_dim
-        for hidden_size in hidden_sizes:
-            layers.append(nn.Linear(prev_size, hidden_size))
-            layers.append(hidden_nonlinearity())
-            prev_size = hidden_size
-        layers.append(nn.Linear(prev_size, output_dim))
-        self.model = nn.Sequential(*layers)
-
-    def forward(self, x):
-        return self.model(x)
     
 class TaskConditionedNetwork(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_sizes=(400, 400), hidden_nonlinearity=nn.ReLU):
         super(TaskConditionedNetwork, self).__init__()
-        self.network = MLP(input_dim, output_dim, hidden_sizes, hidden_nonlinearity)
+        self.network = nn.Sequential(
+            nn.Linear(input_dim, 400),
+            nn.ReLU(),
+            nn.Linear(400, output_dim)
+        )
 
-    def forward(self, state, task_embedding):
-        x = torch.cat([state, task_embedding], dim=-1)
+    def forward(self, x):
+        x.requires_grad_(True)
         return self.network(x)
 
 class TaskConditionedPolicyNetwork(nn.Module):
     def __init__(self, state_dim, action_dim, num_tasks, hidden_sizes=(400, 400), hidden_nonlinearity=nn.ReLU, min_log_std=-20, max_log_std=2):
         super(TaskConditionedPolicyNetwork, self).__init__()
         self.num_tasks = num_tasks
-        self.network = TaskConditionedNetwork(state_dim + num_tasks, hidden_sizes[-1], hidden_sizes, hidden_nonlinearity)
+        self.network = nn.Sequential(
+            nn.Linear(state_dim + num_tasks, 400),
+            nn.ReLU(),
+            nn.Linear(400, 400)
+        )
         self.mean_layer = nn.Linear(hidden_sizes[-1], action_dim)
         self.log_std_layer = nn.Linear(hidden_sizes[-1], action_dim)
         self.min_log_std = min_log_std
         self.max_log_std = max_log_std
 
-    def forward(self, state, task_embedding):
-        x = self.network(state, task_embedding)
+    def forward(self, state):
+        x = self.network(state)
         mean = self.mean_layer(x)
         log_std = self.log_std_layer(x)
         log_std = torch.clamp(log_std, self.min_log_std, self.max_log_std)
         std = log_std.exp()
         return mean, std
 
-    def sample(self, state, task_embedding):
-        mean, std = self.forward(state, task_embedding)
+    def sample(self, state):
+        mean, std = self.forward(state)
         normal = torch.distributions.Normal(mean, std)
         z = normal.rsample()  # Reparameterization trick
         action = torch.tanh(z)  # Apply tanh to bound actions
