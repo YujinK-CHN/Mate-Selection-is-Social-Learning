@@ -235,38 +235,39 @@ class MTPPO():
         return x, y1
         
 
-    def eval(self):
-        episodic_return = []
-        success_tracker_eval = MultiTaskSuccessTracker(len(self.env.tasks))
-        self.policy.eval()
+    def eval(self, policy):
+        task_returns = []
+        success_tracker_eval = MultiTaskSuccessTracker(self.num_tasks)
+        policy.eval()
         with torch.no_grad():
-            # render 5 episodes out
-            for episode in range(5):
-                next_obs, infos = self.env.reset()
-                task_id = self.env.tasks.index(self.env.current_task)
-                one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[task_id]
-                terms = False
-                truncs = False
-                step_return = 0
-                while not terms and not truncs:
-                    # rollover the observation 
-                    #obs = batchify_obs(next_obs, self.device)
-                    obs = torch.FloatTensor(next_obs)
-                    obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
+            for i, task in enumerate(self.env.tasks):
+                # render 5 episodes out
+                episodic_return = []
+                for episode in range(5):
+                    next_obs, infos = task.reset()
+                    one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
+                    terms = False
+                    truncs = False
+                    step_return = 0
+                    while not terms and not truncs:
+                        # rollover the observation 
+                        #obs = batchify_obs(next_obs, self.device)
+                        obs = torch.FloatTensor(next_obs)
+                        obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
-                    # get actions from skills
-                    actions, logprobs, entropy, values = self.policy.act(obs)
+                        # get actions from skills
+                        actions, logprobs, entropy, values = policy.act(obs)
 
-                    # execute the environment and log data
-                    next_obs, rewards, terms, truncs, infos = self.env.step(actions.cpu().numpy())
-                    success = infos.get('success', False)
-                    success_tracker_eval.update(task_id, success)
-                    terms = terms
-                    truncs = truncs
-                    step_return += rewards
-                episodic_return.append(step_return)
-
-        return np.mean(episodic_return), success_tracker_eval.overall_success_rate()
+                        # execute the environment and log data
+                        next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
+                        success = infos.get('success', False)
+                        success_tracker_eval.update(i, success)
+                        terms = terms
+                        truncs = truncs
+                        step_return += rewards
+                    episodic_return.append(step_return)
+                task_returns.append(np.mean(episodic_return))
+        return task_returns, success_tracker_eval.overall_success_rate()
 
     def save(self, path):
         torch.save(self.policy.state_dict(), path)
