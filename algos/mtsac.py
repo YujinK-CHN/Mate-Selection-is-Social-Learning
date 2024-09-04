@@ -123,7 +123,6 @@ class MultiTaskSAC:
                             # obs = batchify_obs(next_obs, self.device)
                             obs = torch.FloatTensor(next_obs)
                             obs = torch.cat((obs, one_hot_id), dim=-1).to(self.device)
-                            obs = obs.requires_grad_()
 
                             # get actions from skills
                             actions, logprobs = self.policy_net.sample(obs)
@@ -151,79 +150,72 @@ class MultiTaskSAC:
 
                         episodic_return.append(step_return)
 
-                rb_index = np.arange(rb_obs.shape[1])
+            rb_index = np.arange(rb_obs.shape[1])
                 
-                for epoch in range(self.epoch_opt):
-                    # shuffle the indices we use to access the data
-                    np.random.shuffle(rb_index)
-                    for start in range(self.gradient_steps_per_itr):
-                        end = start + self.min_batch
-                        batch_index = rb_index[start:end]
-                        for i, task in enumerate(self.envs.tasks): # 10
+            for epoch in range(self.epoch_opt):
+                # shuffle the indices we use to access the data
+                np.random.shuffle(rb_index)
+                for start in range(self.gradient_steps_per_itr):
+                    end = start + self.min_batch
+                    batch_index = rb_index[start:end]
+                    for i, task in enumerate(self.envs.tasks): # 10
 
-                            # Update Q-functions
-                            with torch.no_grad():
-                                next_action, log_prob = self.policy_net.sample(rb_next_obs[i, batch_index, :])
-                                qf1_next_target = self.qf1_target(torch.cat((rb_next_obs[i, batch_index, :], next_action), dim=-1))
-                                qf2_next_target = self.qf2_target(torch.cat((rb_next_obs[i, batch_index, :], next_action), dim=-1))
-                                min_qf_next_target = torch.min(qf1_next_target, qf2_next_target)
-                                next_q_value = rb_rewards[i, batch_index, :] + (1 - rb_terms[i, batch_index, :]) * self.gamma * (min_qf_next_target - log_prob)
+                        # Update Q-functions
+                        with torch.no_grad():
+                            next_action, log_prob = self.policy_net.sample(rb_next_obs[i, batch_index, :])
+                            qf1_next_target = self.qf1_target(torch.cat((rb_next_obs[i, batch_index, :], next_action), dim=-1))
+                            qf2_next_target = self.qf2_target(torch.cat((rb_next_obs[i, batch_index, :], next_action), dim=-1))
+                            min_qf_next_target = torch.min(qf1_next_target, qf2_next_target)
+                            next_q_value = rb_rewards[i, batch_index, :] + (1 - rb_terms[i, batch_index, :]) * self.gamma * (min_qf_next_target - log_prob)
                             
                         
-                            qf1 = self.qf1_net(torch.cat((rb_next_obs[i, batch_index, :], next_action), dim=-1))
-                            qf2 = self.qf2_net(torch.cat((rb_next_obs[i, batch_index, :], next_action), dim=-1))
-                            qf1 = qf1.requires_grad_()
-                            qf2 = qf2.requires_grad_()
-                            next_q_value = next_q_value.requires_grad_()
+                        qf1 = self.qf1_net(torch.cat((rb_next_obs[i, batch_index, :], next_action), dim=-1))
+                        qf2 = self.qf2_net(torch.cat((rb_next_obs[i, batch_index, :], next_action), dim=-1))
+                        next_q_value = next_q_value.requires_grad_()
 
-                            qf1_loss = F.mse_loss(qf1, next_q_value)
-                            qf2_loss = F.mse_loss(qf2, next_q_value)
-
-                            qf1_loss = qf1_loss.requires_grad_()
-                            qf2_loss = qf2_loss.requires_grad_()
+                        qf1_loss = F.mse_loss(qf1, next_q_value)
+                        qf2_loss = F.mse_loss(qf2, next_q_value)
 
                             
-                            self.qf1_optimizer.zero_grad()
-                            qf1_loss.backward()
-                            self.qf1_optimizer.step()
+                        self.qf1_optimizer.zero_grad()
+                        qf1_loss.backward()
+                        self.qf1_optimizer.step()
 
-                            self.qf2_optimizer.zero_grad()
-                            qf2_loss.backward()
-                            self.qf2_optimizer.step()
+                        self.qf2_optimizer.zero_grad()
+                        qf2_loss.backward()
+                        self.qf2_optimizer.step()
 
-                            # Update policy network
-                            pi, log_prob = self.policy_net.sample(rb_obs[i, batch_index, :])
-                            qf1_pi = self.qf1_net(torch.cat((rb_next_obs[i, batch_index, :], pi), dim=-1))
-                            qf2_pi = self.qf2_net(torch.cat((rb_next_obs[i, batch_index, :], pi), dim=-1))
-                            min_qf_pi = torch.min(qf1_pi, qf2_pi)
+                        # Update policy network
+                        pi, log_prob = self.policy_net.sample(rb_obs[i, batch_index, :])
+                        qf1_pi = self.qf1_net(torch.cat((rb_next_obs[i, batch_index, :], pi), dim=-1))
+                        qf2_pi = self.qf2_net(torch.cat((rb_next_obs[i, batch_index, :], pi), dim=-1))
+                        min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
-                            if hasattr(self, 'log_alpha'):
-                                self.log_alpha = self.log_alpha.to(self.device)
-                                alpha_loss = -(self.log_alpha * (log_prob + self.target_entropy)).mean()
-                                alpha_loss = alpha_loss.requires_grad_()
-                                self.alpha_optimizer.zero_grad()
-                                alpha_loss.backward()
-                                self.alpha_optimizer.step()
-                                alpha = self.log_alpha.exp()
-                            else:
-                                alpha = self.alpha
+                        if hasattr(self, 'log_alpha'):
+                            self.log_alpha = self.log_alpha.to(self.device)
+                            alpha_loss = -(self.log_alpha * (log_prob + self.target_entropy)).mean()
+                            self.alpha_optimizer.zero_grad()
+                            alpha_loss.backward()
+                            self.alpha_optimizer.step()
+                            alpha = self.log_alpha.exp()
+                        else:
+                            alpha = self.alpha
 
-                            policy_loss = (alpha * log_prob - min_qf_pi).mean()
-                            policy_loss = policy_loss.requires_grad_()
+                        policy_loss = (alpha * log_prob - min_qf_pi).mean()
 
-                            self.policy_optimizer.zero_grad()
-                            policy_loss.backward()
-                            self.policy_optimizer.step()
+                        self.policy_optimizer.zero_grad()
+                        policy_loss.backward()
+                        self.policy_optimizer.step()
 
-                            # Soft update target networks
-                            with torch.no_grad():
-                                for target_param, param in zip(self.qf1_target.parameters(), self.qf1_net.parameters()):
-                                    target_param.data.mul_(1 - self.tau)
-                                    target_param.data.add_(self.tau * param.data)
+                        # Soft update target networks
+                        with torch.no_grad():
+                            for target_param, param in zip(self.qf1_target.parameters(), self.qf1_net.parameters()):
+                                target_param.data.mul_(1 - self.tau)
+                                target_param.data.add_(self.tau * param.data)
 
-                                for target_param, param in zip(self.qf2_target.parameters(), self.qf2_net.parameters()):
-                                    target_param.data.mul_(1 - self.tau)
-                                    target_param.data.add_(self.tau * param.data)
+                            for target_param, param in zip(self.qf2_target.parameters(), self.qf2_net.parameters()):
+                                target_param.data.mul_(1 - self.tau)
+                                target_param.data.add_(self.tau * param.data)
 
             mean_eval_return, mean_success_rate = self.eval()
             print(f"Training episode {epoch}")

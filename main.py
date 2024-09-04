@@ -6,7 +6,7 @@ from pipline.train import training
 from algos.ppo import PPO
 from algos.ippo import IPPO
 from algos.mappo import MAPPO
-from algos.mtppo_copy import MTPPO
+from algos.mtppo import MTPPO
 from algos.sle_ppo import SLE_MTPPO
 from algos.mtsac import MultiTaskSAC
 
