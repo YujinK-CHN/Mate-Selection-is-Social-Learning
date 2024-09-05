@@ -6,7 +6,7 @@ from pipline.train import training
 from algos.ppo import PPO
 from algos.ippo import IPPO
 from algos.mappo import MAPPO
-from algos.mtppo import MTPPO
+from algos.mtppo_copy import MTPPO
 from algos.sle_ppo import SLE_MTPPO
 from algos.mtsac import MultiTaskSAC
 
@@ -59,12 +59,12 @@ if __name__ == "__main__":
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
-        'batch_size': 50000,
+        'batch_size': 100000,
         'max_path_length': 500,
         'min_batch': 32,
         'epoch_merging': 4,
         'epoch_finetune': 8,
-        'epoch_opt': 8,
+        'epoch_opt': 16,
         'total_episodes': 200,
         'hidden_size': 512,
         'lr': 0.0005
