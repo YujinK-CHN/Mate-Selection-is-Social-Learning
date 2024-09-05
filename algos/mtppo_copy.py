@@ -180,7 +180,7 @@ class MTPPO():
                                 break
                             
                         
-                        #episodic_return.append(step_return)
+                        episodic_return.append(step_return)
 
                         # skills advantage
                         gae = 0
@@ -190,7 +190,7 @@ class MTPPO():
                             rb_advantages[i, t] = gae
 
                         
-                    task_returns.append(normalized_episodic_return)
+                    task_returns.append(np.mean(episodic_return))
                                 
             rb_returns = rb_advantages + rb_values
 
@@ -291,7 +291,6 @@ class MTPPO():
     def eval(self, policy):
         task_returns = []
         success_tracker_eval = MultiTaskSuccessTracker(self.num_tasks)
-        normalizer = TaskReturnNormalizer(num_tasks=self.num_tasks)
         policy.eval()
         with torch.no_grad():
             for i, task in enumerate(self.env.tasks):
@@ -303,6 +302,7 @@ class MTPPO():
                     terms = False
                     truncs = False
                     step_return = 0
+                    normalizer = RewardsNormalizer(num_tasks=self.num_tasks)
                     while not terms and not truncs:
                         # rollover the observation 
                         #obs = batchify_obs(next_obs, self.device)
@@ -313,16 +313,17 @@ class MTPPO():
                         actions, logprobs, entropy, values = policy.act(obs)
 
                         # execute the environment and log data
-                        next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
+                        next_obs, reward, terms, truncs, infos = task.step(actions.cpu().numpy())
                         success = infos.get('success', False)
                         success_tracker_eval.update(i, success)
+                        normalizer.update(i, reward)
+                        reward = normalizer.normalize(i, reward)
                         terms = terms
                         truncs = truncs
-                        step_return += rewards
+                        step_return += reward
                     episodic_return.append(step_return)
-                normalizer.update(i, np.mean(episodic_return))
-                normalized_episodic_return = normalizer.normalize(i, np.mean(episodic_return))
-                task_returns.append(normalized_episodic_return)
+                
+                task_returns.append(np.mean(episodic_return))
         return task_returns, success_tracker_eval.overall_success_rate()
 
     def save(self, path):

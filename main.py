@@ -133,8 +133,8 @@ if __name__ == "__main__":
     ''''''
     
 
-    run_seeds(seeds_ppo)
+    #run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
-    #training(config, mtppo2)
+    training(config, mtppo3)
     #training(config, sle)
     

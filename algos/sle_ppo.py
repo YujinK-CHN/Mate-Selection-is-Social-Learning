@@ -38,22 +38,32 @@ class MultiTaskSuccessTracker:
             return 0.0
         return total_successes / total_attempts
 
-class TaskReturnNormalizer:
+class RewardsNormalizer:
     def __init__(self, num_tasks, epsilon=1e-8):
         self.mean = np.zeros(num_tasks)
         self.var = np.ones(num_tasks)
         self.count = np.zeros(num_tasks)
         self.epsilon = epsilon
 
-    def update(self, task_id, new_return):
+    def update(self, task_id, reward):
+        # Increment count for the current task
         self.count[task_id] += 1
+        
+        # Store the old mean before updating
         old_mean = self.mean[task_id]
-        self.mean[task_id] += (new_return - old_mean) / self.count[task_id]
-        self.var[task_id] += (new_return - old_mean) * (new_return - self.mean[task_id])
+        
+        # Update the running mean using Welford's algorithm
+        self.mean[task_id] += (reward - old_mean) / self.count[task_id]
+        
+        # Update the running variance (using the difference between the new reward and the updated mean)
+        self.var[task_id] += (reward - old_mean) * (reward - self.mean[task_id])
 
-    def normalize(self, task_id, ret):
+    def normalize(self, task_id, reward):
+        # Compute the standard deviation
         std = np.sqrt(self.var[task_id] / (self.count[task_id] + self.epsilon))
-        return (ret - self.mean[task_id]) / (std + self.epsilon)
+        
+        # Normalize the reward using the updated mean and standard deviation
+        return (reward - self.mean[task_id]) / (std + self.epsilon)
     
 
 class SLE_MTPPO():
@@ -109,7 +119,6 @@ class SLE_MTPPO():
     def eval(self, policy):
         task_returns = []
         success_tracker_eval = MultiTaskSuccessTracker(self.num_tasks)
-        normalizer = TaskReturnNormalizer(num_tasks=self.num_tasks)
         policy.eval()
         with torch.no_grad():
             for i, task in enumerate(self.env.tasks):
@@ -121,6 +130,7 @@ class SLE_MTPPO():
                     terms = False
                     truncs = False
                     step_return = 0
+                    normalizer = RewardsNormalizer(num_tasks=self.num_tasks)
                     while not terms and not truncs:
                         # rollover the observation 
                         #obs = batchify_obs(next_obs, self.device)
@@ -131,16 +141,17 @@ class SLE_MTPPO():
                         actions, logprobs, entropy, values = policy.act(obs)
 
                         # execute the environment and log data
-                        next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
+                        next_obs, reward, terms, truncs, infos = task.step(actions.cpu().numpy())
                         success = infos.get('success', False)
                         success_tracker_eval.update(i, success)
+                        normalizer.update(i, reward)
+                        reward = normalizer.normalize(i, reward)
                         terms = terms
                         truncs = truncs
-                        step_return += rewards
+                        step_return += reward
                     episodic_return.append(step_return)
-                normalizer.update(i, np.mean(episodic_return))
-                normalized_episodic_return = normalizer.normalize(i, np.mean(episodic_return))
-                task_returns.append(normalized_episodic_return)
+                
+                task_returns.append(np.mean(episodic_return))
         return task_returns, success_tracker_eval.overall_success_rate()
             
     def get_fitness(self, pop: list):
