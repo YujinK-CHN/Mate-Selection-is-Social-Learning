@@ -34,22 +34,32 @@ class MultiTaskSuccessTracker:
             return 0.0
         return total_successes / total_attempts
     
-class TaskReturnNormalizer:
+class RewardsNormalizer:
     def __init__(self, num_tasks, epsilon=1e-8):
         self.mean = np.zeros(num_tasks)
         self.var = np.ones(num_tasks)
         self.count = np.zeros(num_tasks)
         self.epsilon = epsilon
 
-    def update(self, task_id, new_return):
+    def update(self, task_id, reward):
+        # Increment count for the current task
         self.count[task_id] += 1
+        
+        # Store the old mean before updating
         old_mean = self.mean[task_id]
-        self.mean[task_id] += (new_return - old_mean) / self.count[task_id]
-        self.var[task_id] += (new_return - old_mean) * (new_return - self.mean[task_id])
+        
+        # Update the running mean using Welford's algorithm
+        self.mean[task_id] += (reward - old_mean) / self.count[task_id]
+        
+        # Update the running variance (using the difference between the new reward and the updated mean)
+        self.var[task_id] += (reward - old_mean) * (reward - self.mean[task_id])
 
-    def normalize(self, task_id, ret):
+    def normalize(self, task_id, reward):
+        # Compute the standard deviation
         std = np.sqrt(self.var[task_id] / (self.count[task_id] + self.epsilon))
-        return (ret - self.mean[task_id]) / (std + self.epsilon)
+        
+        # Normalize the reward using the updated mean and standard deviation
+        return (reward - self.mean[task_id]) / (std + self.epsilon)
        
 class MTPPO():
 
@@ -127,7 +137,7 @@ class MTPPO():
             
             task_returns = []
             success_tracker = MultiTaskSuccessTracker(self.num_tasks)
-            normalizer = TaskReturnNormalizer(num_tasks=self.num_tasks)
+            
             with torch.no_grad():
                 for i, task in enumerate(self.env.tasks): # 10
                     index = 0
@@ -136,6 +146,7 @@ class MTPPO():
                         next_obs, infos = task.reset()
                         one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
                         step_return = 0
+                        normalizer = RewardsNormalizer(num_tasks=self.num_tasks)
                         for step in range(0, self.max_cycles): # 500
                             # rollover the observation 
                             # obs = batchify_obs(next_obs, self.device)
@@ -146,13 +157,16 @@ class MTPPO():
                             actions, logprobs, entropy, values = self.policy.act(obs)
 
                             # execute the environment and log data
-                            next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
+                            next_obs, reward, terms, truncs, infos = task.step(actions.cpu().numpy())
                             success = infos.get('success', False)
                             success_tracker.update(i, success)
 
+                            normalizer.update(i, reward)
+                            reward = normalizer.normalize(i, reward)
+
                             # add to episode storage
                             rb_obs[i, index] = obs
-                            rb_rewards[i, index] = rewards
+                            rb_rewards[i, index] = reward
                             rb_terms[i, index] = terms
                             rb_actions[i, index] = actions
                             rb_logprobs[i, index] = logprobs
@@ -165,8 +179,8 @@ class MTPPO():
                             if terms or truncs:
                                 break
                             
-
-                        episodic_return.append(step_return)
+                        
+                        #episodic_return.append(step_return)
 
                         # skills advantage
                         gae = 0
@@ -175,8 +189,7 @@ class MTPPO():
                             gae = delta + self.discount * self.gae_lambda * rb_terms[i, t] * gae
                             rb_advantages[i, t] = gae
 
-                    normalizer.update(i, np.mean(episodic_return))
-                    normalized_episodic_return = normalizer.normalize(i, np.mean(episodic_return))
+                        
                     task_returns.append(normalized_episodic_return)
                                 
             rb_returns = rb_advantages + rb_values
@@ -185,7 +198,7 @@ class MTPPO():
          
             rb_index = np.arange(rb_obs.shape[1])
             clip_fracs = []
-            for epoch in range(self.epoch_opt): # 256
+            for epoch in range(self.epoch_opt): # 16
                 # shuffle the indices we use to access the data
                 np.random.shuffle(rb_index)
                 for start in range(0, rb_obs.shape[1], self.min_batch):

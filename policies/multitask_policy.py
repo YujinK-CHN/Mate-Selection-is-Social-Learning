@@ -21,11 +21,11 @@ class MultiTaskPolicy(nn.Module):
             )
         
         self.shared_layers = nn.Sequential(
-            nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size),
+            self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size)),
             nn.Tanh(),
-            nn.Linear(hidden_size, hidden_size),
+            self._layer_init(nn.Linear(hidden_size, hidden_size)),
             nn.Tanh(),
-            nn.Linear(hidden_size, env.action_space.shape[0]),
+            self._layer_init(nn.Linear(hidden_size, env.action_space.shape[0])),
         )
         '''
         self.task_heads = nn.ModuleList([
@@ -37,13 +37,17 @@ class MultiTaskPolicy(nn.Module):
         ])
         '''
         self.critic = nn.Sequential(
-            nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size),
+            self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size)),
             nn.Tanh(),
-            nn.Linear(hidden_size, hidden_size),
+            self._layer_init(nn.Linear(hidden_size, hidden_size)),
             nn.Tanh(),
-            nn.Linear(hidden_size, 1)
+            self._layer_init(nn.Linear(hidden_size, 1))
         )
-        
+
+    def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
+        torch.nn.init.orthogonal_(layer.weight, std)
+        torch.nn.init.constant_(layer.bias, bias_const)
+        return layer
 
     def act(self, x):
         means = self.shared_layers(x)

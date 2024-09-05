@@ -133,11 +133,8 @@ if __name__ == "__main__":
     ''''''
     
 
-    try:
-        run_seeds(seeds_ppo)
-        #training(config_mtsac, mtsac2)
-        #training(config, mtppo2)
-        #training(config, sle)
-    except KeyboardInterrupt:
-        raise "Processes Shut Down!"
+    run_seeds(seeds_ppo)
+    #training(config_mtsac, mtsac2)
+    #training(config, mtppo2)
+    #training(config, sle)
     
