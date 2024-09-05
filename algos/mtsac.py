@@ -149,6 +149,7 @@ class MultiTaskSAC:
                             
 
                         episodic_return.append(step_return)
+                    task_returns.append(np.mean(episodic_return))
 
             rb_index = np.arange(rb_obs.shape[1])
                 
