@@ -27,6 +27,21 @@ def create_metaworld(seed):
         training_envs.append(env)
     return training_envs
 
+def run_seeds(seeds):
+        pool = mp.Pool()
+        process_inputs = [(config, seeds[i]) for i in range(len(seeds))]
+        results = pool.starmap(training, process_inputs)
+        pool.close()
+        pool.join()
+
+        seeds_episodic_x = [res[0] for res in results]  # receive from multi-process
+        seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
+
+        x = seeds_episodic_x[0]
+        y = np.mean(np.asarray(seeds_episodic_return), axis=0)
+
+        plt.plot(x, y)
+        plt.show()
 
 class MultiTaskEnv():
     def __init__(self, seed):
@@ -113,24 +128,17 @@ if __name__ == "__main__":
     mtsac2 = MultiTaskSAC(multi_task_env_42, config_mtsac)
     mtsac3 = MultiTaskSAC(multi_task_env_100, config_mtsac)
     seeds_sac = [mtsac1, mtsac2, mtsac3]
-    '''
-    pool = mp.Pool()
-    process_inputs = [(config, seeds_ppo[i]) for i in range(len(seeds_ppo))]
-    results = pool.starmap(training, process_inputs)
-    pool.close()
-    pool.join()
+    ''''''
+    
 
-    seeds_episodic_x = [res[0] for res in results]  # receive from multi-process
-    seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
-
-    x = seeds_episodic_x[0]
-    y = np.mean(np.asarray(seeds_episodic_return), axis=0)
-
-    plt.plot(x, y)
-    plt.show()
-    '''
-
+    try:
+        run_seeds(seeds_sac)
+        #training(config_mtsac, mtsac2)
+        #training(config, mtppo2)
+        #training(config, sle)
+    except KeyboardInterrupt:
+        raise "Processes Shut Down!"
     #training(config_mtsac, mtsac2)
-    training(config, mtppo2)
+    #training(config, mtppo2)
     #training(config, sle)
     

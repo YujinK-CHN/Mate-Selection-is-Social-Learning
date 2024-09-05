@@ -213,7 +213,7 @@ class MTPPO():
                     torch.sum(task_losses).backward()
                     self.opt.step()
 
-            eval_return, mean_success_rate = self.eval()
+            eval_return, mean_success_rate = self.eval(self.policy)
             
             print(f"Training episode {episode}")
             print(f"Training seed {self.seed}")
