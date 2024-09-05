@@ -36,6 +36,8 @@ def run_seeds(seeds):
 
         seeds_episodic_x = [res[0] for res in results]  # receive from multi-process
         seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
+        seeds_episodic_x_eval = [res[2] for res in results]  # receive from multi-process
+        seeds_episodic_return_eval = [res[3] for res in results]  # receive from multi-process
 
         x = seeds_episodic_x[0]
         y = np.mean(np.asarray(seeds_episodic_return), axis=0)
@@ -45,7 +47,7 @@ def run_seeds(seeds):
 
 class MultiTaskEnv():
     def __init__(self, seed):
-        self.tasks = create_metaworld(seed)[:5] # [task1, task2]
+        self.tasks = create_metaworld(seed) # [task1, task2]
         self.current_task = None
         self.observation_space = self.tasks[0].observation_space
         self.action_space = self.tasks[0].action_space
@@ -80,7 +82,7 @@ if __name__ == "__main__":
         'epoch_merging': 4,
         'epoch_finetune': 8,
         'epoch_opt': 16,
-        'total_episodes': 200,
+        'total_episodes': 100,
         'hidden_size': 512,
         'lr': 0.0005
     }

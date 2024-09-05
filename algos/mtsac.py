@@ -77,7 +77,14 @@ class MultiTaskSAC:
         self.qf2_optimizer = optim.Adam(self.qf2_net.parameters(), lr=self.qf_lr)
 
         if self.use_automatic_entropy_tuning:
-            self.log_alpha = torch.zeros(1, requires_grad=True)
+            self.log_alpha = torch.nn.Parameter(
+                torch.tensor(
+                    [
+                        np.log(1.0, dtype=np.float32)
+                        for _ in range(self.num_tasks)
+                    ]
+                ).to(self.device)
+            )
             self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.policy_lr)
             self.target_entropy = -np.prod(self.action_dim).item()
         else:

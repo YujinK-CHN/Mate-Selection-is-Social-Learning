@@ -38,6 +38,23 @@ class MultiTaskSuccessTracker:
             return 0.0
         return total_successes / total_attempts
 
+class TaskReturnNormalizer:
+    def __init__(self, num_tasks, epsilon=1e-8):
+        self.mean = np.zeros(num_tasks)
+        self.var = np.ones(num_tasks)
+        self.count = np.zeros(num_tasks)
+        self.epsilon = epsilon
+
+    def update(self, task_id, new_return):
+        self.count[task_id] += 1
+        old_mean = self.mean[task_id]
+        self.mean[task_id] += (new_return - old_mean) / self.count[task_id]
+        self.var[task_id] += (new_return - old_mean) * (new_return - self.mean[task_id])
+
+    def normalize(self, task_id, ret):
+        std = np.sqrt(self.var[task_id] / (self.count[task_id] + self.epsilon))
+        return (ret - self.mean[task_id]) / (std + self.epsilon)
+    
 
 class SLE_MTPPO():
 
@@ -92,6 +109,7 @@ class SLE_MTPPO():
     def eval(self, policy):
         task_returns = []
         success_tracker_eval = MultiTaskSuccessTracker(self.num_tasks)
+        normalizer = TaskReturnNormalizer(num_tasks=self.num_tasks)
         policy.eval()
         with torch.no_grad():
             for i, task in enumerate(self.env.tasks):
@@ -120,7 +138,9 @@ class SLE_MTPPO():
                         truncs = truncs
                         step_return += rewards
                     episodic_return.append(step_return)
-                task_returns.append(np.mean(episodic_return))
+                normalizer.update(i, np.mean(episodic_return))
+                normalized_episodic_return = normalizer.normalize(i, np.mean(episodic_return))
+                task_returns.append(normalized_episodic_return)
         return task_returns, success_tracker_eval.overall_success_rate()
             
     def get_fitness(self, pop: list):

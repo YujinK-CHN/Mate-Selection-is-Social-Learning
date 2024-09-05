@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from processing.batching import batchify, batchify_obs, unbatchify
+from processing.task_encoder import TaskEncoder
 from policies.centralized_policy import CentralizedPolicy
 from policies.multitask_policy import MultiTaskPolicy
 
@@ -33,6 +34,23 @@ class MultiTaskSuccessTracker:
             return 0.0
         return total_successes / total_attempts
     
+class TaskReturnNormalizer:
+    def __init__(self, num_tasks, epsilon=1e-8):
+        self.mean = np.zeros(num_tasks)
+        self.var = np.ones(num_tasks)
+        self.count = np.zeros(num_tasks)
+        self.epsilon = epsilon
+
+    def update(self, task_id, new_return):
+        self.count[task_id] += 1
+        old_mean = self.mean[task_id]
+        self.mean[task_id] += (new_return - old_mean) / self.count[task_id]
+        self.var[task_id] += (new_return - old_mean) * (new_return - self.mean[task_id])
+
+    def normalize(self, task_id, ret):
+        std = np.sqrt(self.var[task_id] / (self.count[task_id] + self.epsilon))
+        return (ret - self.mean[task_id]) / (std + self.epsilon)
+       
 class MTPPO():
 
     def __init__(
@@ -41,11 +59,15 @@ class MTPPO():
             config
     ):
         self.env = env
+        self.num_tasks = len(env.tasks)
         self.seed = env.seed
         self.obs_shape = env.observation_space.shape[0]
         self.device = config['device']
         self.name = 'mtppo'
         self.hidden_size = config['hidden_size']
+
+        self.task_weights = torch.Tensor([0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5])
+
         self.policy = MultiTaskPolicy(
             env = env,
             num_tasks = len(env.tasks),
@@ -53,6 +75,14 @@ class MTPPO():
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
+
+        self.task_encoder = TaskEncoder(
+            num_embeddings=self.num_tasks,
+            embedding_dim=config['hidden_size'],
+            hidden_dim=config['hidden_size'],
+            output_dim=config['hidden_size']
+        )
+
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-8)
 
         self.max_cycles = config['max_path_length']
@@ -67,14 +97,15 @@ class MTPPO():
         self.ent_coef = config['ent_coef']
         self.vf_coef = config['vf_coef']
         self.continuous = config['continuous']
-        self.num_tasks = len(env.tasks)
+        
     
     """ TRAINING LOGIC """
     
     def train(self):
-
-        y1 = []
-        y2 = []
+        x = []
+        y = []
+        x_eval = []
+        y_eval = []
         y3 = []
         
         # train for n number of episodes
@@ -95,7 +126,8 @@ class MTPPO():
             # sampling
             
             task_returns = []
-            success_tracker = MultiTaskSuccessTracker(len(self.env.tasks))
+            success_tracker = MultiTaskSuccessTracker(self.num_tasks)
+            normalizer = TaskReturnNormalizer(num_tasks=self.num_tasks)
             with torch.no_grad():
                 for i, task in enumerate(self.env.tasks): # 10
                     index = 0
@@ -143,7 +175,9 @@ class MTPPO():
                             gae = delta + self.discount * self.gae_lambda * rb_terms[i, t] * gae
                             rb_advantages[i, t] = gae
 
-                    task_returns.append(np.mean(episodic_return))
+                    normalizer.update(i, np.mean(episodic_return))
+                    normalized_episodic_return = normalizer.normalize(i, np.mean(episodic_return))
+                    task_returns.append(normalized_episodic_return)
                                 
             rb_returns = rb_advantages + rb_values
 
@@ -210,38 +244,41 @@ class MTPPO():
                         task_losses[i] = loss
 
                     self.opt.zero_grad()
-                    torch.sum(task_losses).backward()
+                    torch.sum(task_losses*self.task_weights).backward()
                     self.opt.step()
 
-            eval_return, mean_success_rate = self.eval(self.policy)
             
             print(f"Training episode {episode}")
             print(f"Training seed {self.seed}")
             print(f"Episodic Return: {np.mean(task_returns)}")
             print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
-            print(f"Evaluation Return: {eval_return}")
-            print(f"Evaluation success rate: {mean_success_rate}")
             print(f"Episodic Loss: {loss.item()}")
-            #print(f"overall success rate: {success_tracker.overall_success_rate() * 100:.2f}")
             print("\n-------------------------------------------\n")
+            if episode % 10 == 0:
+                eval_return, mean_success_rate = self.eval(self.policy)
+                x_eval.append(episode)
+                y_eval.append(np.mean(eval_return))
+                print(f"Training episode {episode}")
+                print(f"Evaluation Return: {eval_return}")
+                print(f"Evaluation success rate: {mean_success_rate}")
+                print("\n-------------------------------------------\n")
 
-            x = np.linspace(0, episode, episode+1)
-            y1.append(np.mean(task_returns))
-            y2.append(np.mean(eval_return))
+            x.append(episode)
+            y.append(np.mean(task_returns))
+            
             #y3.append(success_tracker.overall_success_rate())
             if episode % 10 == 0:
-                plt.plot(x, y1)
-                plt.plot(x, y2)
-                #plt.plot(x, y3)
+                plt.plot(x, y)
                 plt.pause(0.05)
         plt.show(block=False)
         
-        return x, y1
+        return x, y, x_eval, y_eval
         
 
     def eval(self, policy):
         task_returns = []
         success_tracker_eval = MultiTaskSuccessTracker(self.num_tasks)
+        normalizer = TaskReturnNormalizer(num_tasks=self.num_tasks)
         policy.eval()
         with torch.no_grad():
             for i, task in enumerate(self.env.tasks):
@@ -270,7 +307,9 @@ class MTPPO():
                         truncs = truncs
                         step_return += rewards
                     episodic_return.append(step_return)
-                task_returns.append(np.mean(episodic_return))
+                normalizer.update(i, np.mean(episodic_return))
+                normalized_episodic_return = normalizer.normalize(i, np.mean(episodic_return))
+                task_returns.append(normalized_episodic_return)
         return task_returns, success_tracker_eval.overall_success_rate()
 
     def save(self, path):
