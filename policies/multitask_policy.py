@@ -7,23 +7,26 @@ from torch.distributions.multivariate_normal import MultivariateNormal
 
 class MultiTaskPolicy(nn.Module):
     
-    def __init__(self, env, num_tasks, hidden_size, continuous, device):
+    def __init__(self, env, num_tasks, hidden_size, continuous, normalize_states, device):
         super(MultiTaskPolicy, self).__init__()
         self.env = env
         self.continuous = continuous
+        self.normalize_states = normalize_states
         self.device = device
         self.log_std = nn.Parameter(torch.full((env.action_space.shape[0],), 1.0))
-        self.obs_means = [torch.zeros(env.observation_space.shape[0]+num_tasks).to(device) for _ in range(len(env.tasks))]
-        self.obs_stds = [torch.ones(env.observation_space.shape[0]+num_tasks).to(device) for _ in range(len(env.tasks))]
-        self.counts = [1e-8 for _ in range(len(env.tasks))]  # Avoid division by zero initially
 
+        if self.normalize_states:
+            self.obs_means = [torch.zeros(env.observation_space.shape[0]+num_tasks).to(device) for _ in range(len(env.tasks))]
+            self.obs_stds = [torch.ones(env.observation_space.shape[0]+num_tasks).to(device) for _ in range(len(env.tasks))]
+            self.counts = [1e-8 for _ in range(len(env.tasks))]  # Avoid division by zero initially
+        '''
         self.embedding = nn.Sequential(
                 nn.Embedding(num_embeddings = num_tasks, embedding_dim = hidden_size),
                 nn.Tanh(),
                 nn.Linear(hidden_size, hidden_size),
                 nn.Tanh(),
             )
-        
+        '''
         self.shared_layers = nn.Sequential(
             self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size)),
             nn.Tanh(),
@@ -66,8 +69,9 @@ class MultiTaskPolicy(nn.Module):
         
         actions = action_dist.sample()
 
-        normalized_obs = self.normalize_state(x, self.obs_means[task_id], self.obs_stds[task_id])
-        values = self.critic(normalized_obs)
+        if self.normalize_values:
+            x = self.normalize_states(x, self.obs_means[task_id], self.obs_stds[task_id])
+        values = self.critic(x)
 
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
@@ -83,8 +87,9 @@ class MultiTaskPolicy(nn.Module):
             clamped_cov_matrix = torch.diag_embed(clamped_diagonal) + (torch.diag_embed(action_var) - torch.diag_embed(action_var)).to(self.device)
             action_dist = MultivariateNormal(means, clamped_cov_matrix)
 
-        normalized_obs = self.normalize_state(x, self.obs_means[task_id], self.obs_stds[task_id])
-        values = self.critic(normalized_obs)
+        if self.normalize_states:
+            x = self.normalize_state(x, self.obs_means[task_id], self.obs_stds[task_id])
+        values = self.critic(x)
         # print(self.shared_layers[2].weight.grad)
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
 

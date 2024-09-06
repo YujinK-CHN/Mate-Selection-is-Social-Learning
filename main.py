@@ -70,13 +70,16 @@ if __name__ == "__main__":
     config = {
         'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         'continuous': True,
+        'normalize_states': False,
+        'normalize_values': False,
+        'normalize_rewards': False,
         'pop_size': 3,
         'ent_coef': 0.01,
         'vf_coef': 0.1,
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
-        'batch_size': 50000,
+        'batch_size': 30000,
         'max_path_length': 500,
         'min_batch': 256,
         'epoch_merging': 4,
@@ -134,8 +137,8 @@ if __name__ == "__main__":
     ''''''
     
 
-    #run_seeds(seeds_ppo)
+    run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
-    training(config, mtppo3)
+    #training(config, mtppo3)
     #training(config, sle)
     
