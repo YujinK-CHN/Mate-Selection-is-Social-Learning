@@ -355,7 +355,10 @@ class MTPPO():
                     terms = False
                     truncs = False
                     step_return = 0
-                    normalizer = RewardsNormalizer(num_tasks=self.num_tasks)
+
+                    if self.normalize_rewards:
+                        normalizer = RewardsNormalizer(num_tasks=self.num_tasks)
+                        
                     while not terms and not truncs:
                         # rollover the observation 
                         #obs = batchify_obs(next_obs, self.device)
@@ -369,8 +372,9 @@ class MTPPO():
                         next_obs, reward, terms, truncs, infos = task.step(actions.cpu().numpy())
                         success = infos.get('success', False)
                         success_tracker_eval.update(i, success)
-                        normalizer.update(i, reward)
-                        reward = normalizer.normalize(i, reward)
+                        if self.normalize_rewards:
+                            normalizer.update(i, reward)
+                            reward = normalizer.normalize(i, reward)
                         terms = terms
                         truncs = truncs
                         step_return += reward
