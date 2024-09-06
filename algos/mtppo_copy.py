@@ -300,8 +300,8 @@ class MTPPO():
                         )
 
                         # Policy loss
-                        pg_loss1 = -rb_advantages[i, batch_index, :] * ratio
-                        pg_loss2 = -rb_advantages[i, batch_index, :] * torch.clamp(
+                        pg_loss1 = rb_advantages[i, batch_index, :] * ratio
+                        pg_loss2 = rb_advantages[i, batch_index, :] * torch.clamp(
                             ratio, 1 - self.clip_coef, 1 + self.clip_coef
                         )
                         pg_loss = -torch.mean(torch.min(pg_loss1, pg_loss2))
@@ -376,7 +376,7 @@ class MTPPO():
                         obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                         # get actions from skills
-                        actions, logprobs, entropy, values = policy.act(obs)
+                        actions, logprobs, entropy, values = policy.act(obs, i)
 
                         # execute the environment and log data
                         next_obs, reward, terms, truncs, infos = task.step(actions.cpu().numpy())
