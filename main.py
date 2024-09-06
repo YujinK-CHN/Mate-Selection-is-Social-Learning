@@ -76,7 +76,7 @@ if __name__ == "__main__":
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
-        'batch_size': 100000,
+        'batch_size': 50000,
         'max_path_length': 500,
         'min_batch': 256,
         'epoch_merging': 4,

@@ -102,7 +102,7 @@ class ValueNormalizer:
         self.count = torch.zeros(num_tasks)
         self.epsilon = epsilon
 
-    def update(self, x, task_id):
+    def update_value_normalization(self, x, task_id):
         batch_mean = torch.mean(x)
         batch_var = torch.var(x)
         batch_count = len(x)
@@ -144,7 +144,7 @@ class MTPPO():
         self.name = 'mtppo'
         self.hidden_size = config['hidden_size']
 
-        self.task_weights = torch.Tensor([0.5, 1.0, 1.0, 1.0, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0])
+        self.task_weights = torch.Tensor([1.0, 1.0, 1.0])
 
         self.policy = MultiTaskPolicy(
             env = env,
@@ -178,11 +178,6 @@ class MTPPO():
         
     
     """ TRAINING LOGIC """
-    def update_value_normalization(self, task_id, value_predictions):
-        """
-        Update the running statistics for the value normalization.
-        """
-        self.value_normalizers[task_id].update(value_predictions)
     
     def train(self):
         x = []
@@ -238,7 +233,6 @@ class MTPPO():
                             reward_normalizer.update(i, reward)
                             reward = reward_normalizer.normalize(i, reward)
                             normalized_values = value_normalizer.normalize(values, i)
-                            print(normalized_values)
 
                             # add to episode storage
                             rb_obs[i, index] = obs
@@ -268,7 +262,7 @@ class MTPPO():
                         
                     task_returns.append(np.mean(episodic_return))
                     self.policy.update_normalization_stats(i, rb_obs[i, :, :])
-                    self.update_value_normalization(rb_values[i, :, :], i)         
+                    value_normalizer.update_value_normalization(rb_values[i, :, :], i)         
             rb_returns = rb_advantages + rb_values
 
             # Optimizing the policy and value network
@@ -296,8 +290,6 @@ class MTPPO():
                         )
 
                         values = value_normalizer.normalize(values, i)
-                        print(values)
-                        print(values.shape)
                         
                         ratio = torch.exp(newlogprob.unsqueeze(-1) - rb_logprobs[i, batch_index, :])
 
