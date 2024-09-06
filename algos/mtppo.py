@@ -156,7 +156,7 @@ class MTPPO():
          
             rb_index = np.arange(rb_obs.shape[0])
             clip_fracs = []
-            for epoch in range(self.epoch_opt): # 256
+            for epoch in range(self.epoch_opt): # 16
                 # shuffle the indices we use to access the data
                 np.random.shuffle(rb_index)
                 for start in range(0, rb_obs.shape[0], self.min_batch):
@@ -192,11 +192,11 @@ class MTPPO():
                     )
 
                     # Policy loss
-                    pg_loss1 = -rb_advantages[batch_index, :] * ratio
-                    pg_loss2 = -rb_advantages[batch_index, :] * torch.clamp(
+                    pg_loss1 = rb_advantages[batch_index, :] * ratio
+                    pg_loss2 = rb_advantages[batch_index, :] * torch.clamp(
                         ratio, 1 - self.clip_coef, 1 + self.clip_coef
                     )
-                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+                    pg_loss = -torch.mean(torch.min(pg_loss1, pg_loss2))
 
                     # Value loss
                     v_loss_unclipped = (values - rb_returns[batch_index, :]) ** 2
@@ -206,8 +206,8 @@ class MTPPO():
                         self.clip_coef,
                     )
                     v_loss_clipped = (v_clipped - rb_returns[batch_index, :]) ** 2
-                    v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                    v_loss = 0.5 * v_loss_max.mean()
+                    v_loss_min = torch.min(v_loss_unclipped, v_loss_clipped)
+                    v_loss = torch.mean(0.5 * v_loss_min)
 
                     entropy_loss = entropy.max()
                     loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
@@ -229,6 +229,7 @@ class MTPPO():
                 print(f"Evaluating episode {episode}")
                 print(f"Evaluating seed {self.seed}")
                 print(f"Evaluation Return: {eval_return}")
+                print(f"Evaluation Mean Return: {np.mean(eval_return)}")
                 print(f"Evaluation success rate: {mean_success_rate}")
                 print("\n-------------------------------------------\n")
 
