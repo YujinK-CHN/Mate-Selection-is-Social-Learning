@@ -106,7 +106,7 @@ class MTPPO():
                 for i, task in enumerate(self.env.tasks): # 10
                     episodic_return = []
                     for epoch in range(int((self.batch_size / len(self.env.tasks)) / self.max_cycles)): # 10
-                        next_obs, infos = task.reset()
+                        next_obs, infos = task.reset(self.seed)
                         one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
                         step_return = 0
                         for step in range(0, self.max_cycles): # 500

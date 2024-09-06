@@ -41,8 +41,20 @@ def run_seeds(seeds):
 
         x = seeds_episodic_x[0]
         y = np.mean(np.asarray(seeds_episodic_return), axis=0)
+        x_eval = seeds_episodic_x_eval[0]
+        y_eval = np.mean(np.asarray(seeds_episodic_return_eval), axis=0)
 
+        plt.figure()
         plt.plot(x, y)
+        plt.title("Seeds mean training return for MT3 (Metaworld num_tasks=3)")
+        plt.xlabel("episodes")
+        plt.ylabel("mean rewards")
+
+        plt.figure()
+        plt.plot(x_eval, y_eval)
+        plt.title("Seeds mean evaluating return for MT3 (Metaworld num_tasks=3)")
+        plt.xlabel("episodes")
+        plt.ylabel("mean rewards")
         plt.show()
 
 class MultiTaskEnv():
