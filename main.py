@@ -47,7 +47,7 @@ def run_seeds(seeds):
 
 class MultiTaskEnv():
     def __init__(self, seed):
-        self.tasks = create_metaworld(seed) # [task1, task2]
+        self.tasks = [create_metaworld(seed)[i] for i in [0, 5, 8]] # [task1, task2]
         self.current_task = None
         self.observation_space = self.tasks[0].observation_space
         self.action_space = self.tasks[0].action_space
@@ -134,8 +134,8 @@ if __name__ == "__main__":
     ''''''
     
 
-    run_seeds(seeds_ppo)
+    #run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
-    #training(config, mtppo3)
+    training(config, mtppo3)
     #training(config, sle)
     

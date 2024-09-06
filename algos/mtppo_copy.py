@@ -33,43 +33,16 @@ class MultiTaskSuccessTracker:
         if total_attempts == 0:
             return 0.0
         return total_successes / total_attempts
-    
-class RewardsNormalizer:
-    def __init__(self, num_tasks, epsilon=1e-8):
-        self.mean = np.zeros(num_tasks)
-        self.var = np.ones(num_tasks)
-        self.count = np.zeros(num_tasks)
-        self.epsilon = epsilon
 
-    def update(self, task_id, reward):
-        # Increment count for the current task
-        self.count[task_id] += 1
-        
-        # Store the old mean before updating
-        old_mean = self.mean[task_id]
-        
-        # Update the running mean using Welford's algorithm
-        self.mean[task_id] += (reward - old_mean) / self.count[task_id]
-        
-        # Update the running variance (using the difference between the new reward and the updated mean)
-        self.var[task_id] += (reward - old_mean) * (reward - self.mean[task_id])
-
-    def normalize(self, task_id, reward):
-        # Compute the standard deviation
-        std = np.sqrt(self.var[task_id] / (self.count[task_id] + self.epsilon))
-        
-        # Normalize the reward using the updated mean and standard deviation
-        return (reward - self.mean[task_id]) / (std + self.epsilon)
-    
-class ValueNormalizer:
+class StateNormalizer:
     def __init__(self, epsilon=1e-8):
         self.mean = 0.0
         self.var = 1.0
         self.count = epsilon  # Initialize with small count to prevent division by zero
 
     def update(self, x):
-        batch_mean = np.mean(x)
-        batch_var = np.var(x)
+        batch_mean = torch.mean(x)
+        batch_var = torch.var(x)
         batch_count = len(x)
 
         self.mean, self.var, self.count = self.update_mean_var_count(
@@ -94,6 +67,66 @@ class ValueNormalizer:
 
     def denormalize(self, x):
         return x * np.sqrt(self.var) + self.mean
+    
+class RewardsNormalizer:
+    def __init__(self, num_tasks, epsilon=1e-8):
+        self.mean = torch.zeros(num_tasks)
+        self.var = torch.ones(num_tasks)
+        self.count = torch.zeros(num_tasks)
+        self.epsilon = epsilon
+
+    def update(self, task_id, reward):
+        # Increment count for the current task
+        self.count[task_id] += 1
+        
+        # Store the old mean before updating
+        old_mean = self.mean[task_id]
+        
+        # Update the running mean using Welford's algorithm
+        self.mean[task_id] += (reward - old_mean) / self.count[task_id]
+        
+        # Update the running variance (using the difference between the new reward and the updated mean)
+        self.var[task_id] += (reward - old_mean) * (reward - self.mean[task_id])
+
+    def normalize(self, task_id, reward):
+        # Compute the standard deviation
+        std = torch.sqrt(self.var[task_id] / (self.count[task_id] + self.epsilon))
+        
+        # Normalize the reward using the updated mean and standard deviation
+        return (reward - self.mean[task_id]) / (std + self.epsilon)
+    
+class ValueNormalizer:
+    def __init__(self, num_tasks, epsilon=1e-8):
+        self.mean = torch.zeros(num_tasks)
+        self.var = torch.ones(num_tasks)
+        self.count = torch.zeros(num_tasks)
+        self.epsilon = epsilon
+
+    def update(self, x, task_id):
+        batch_mean = torch.mean(x)
+        batch_var = torch.var(x)
+        batch_count = len(x)
+
+        self.mean[task_id], self.var[task_id], self.count[task_id] = self.update_mean_var_count(
+            self.mean[task_id], self.var[task_id], self.count[task_id], batch_mean, batch_var, batch_count
+        )
+
+    @staticmethod
+    def update_mean_var_count(mean, var, count, batch_mean, batch_var, batch_count):
+        delta = batch_mean - mean
+        total_count = count + batch_count
+
+        new_mean = mean + delta * batch_count / total_count
+        m_a = var * count
+        m_b = batch_var * batch_count
+        M2 = m_a + m_b + delta ** 2 * count * batch_count / total_count
+        new_var = M2 / total_count
+
+        return new_mean, new_var, total_count
+
+    def normalize(self, x, task_id):
+        return (x - self.mean[task_id]) / (torch.sqrt(self.var[task_id]) + 1e-8)
+
 
 
 class MTPPO():
@@ -112,7 +145,6 @@ class MTPPO():
         self.hidden_size = config['hidden_size']
 
         self.task_weights = torch.Tensor([0.5, 1.0, 1.0, 1.0, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0])
-        self.value_normalizers = [ValueNormalizer() for _ in range(len(env.tasks))]
 
         self.policy = MultiTaskPolicy(
             env = env,
@@ -179,10 +211,11 @@ class MTPPO():
             task_returns = []
             success_tracker = MultiTaskSuccessTracker(self.num_tasks)
             with torch.no_grad():
+                reward_normalizer = RewardsNormalizer(num_tasks=self.num_tasks)
+                value_normalizer = ValueNormalizer(num_tasks=self.num_tasks)
                 for i, task in enumerate(self.env.tasks): # 10
                     index = 0
                     episodic_return = []
-                    normalizer = RewardsNormalizer(num_tasks=self.num_tasks)
                     for epoch in range(int((self.batch_size / len(self.env.tasks)) / self.max_cycles)): # 20
                         next_obs, infos = task.reset()
                         one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
@@ -191,20 +224,20 @@ class MTPPO():
                             # rollover the observation 
                             # obs = batchify_obs(next_obs, self.device)
                             obs = torch.FloatTensor(next_obs)
-                            self.policy.update_normalization_stats(obs)
+
                             obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                             # get actions from skills
-                            actions, logprobs, entropy, values = self.policy.act(obs)
+                            actions, logprobs, entropy, values = self.policy.act(obs, i)
 
                             # execute the environment and log data
                             next_obs, reward, terms, truncs, infos = task.step(actions.cpu().numpy())
                             success = infos.get('success', False)
                             success_tracker.update(i, success)
 
-                            normalizer.update(i, reward)
-                            reward = normalizer.normalize(i, reward)
-                            normalized_values = self.value_normalizers[i].normalize(values)
+                            reward_normalizer.update(i, reward)
+                            reward = reward_normalizer.normalize(i, reward)
+                            normalized_values = value_normalizer.normalize(values, i)
                             print(normalized_values)
 
                             # add to episode storage
@@ -234,7 +267,8 @@ class MTPPO():
 
                         
                     task_returns.append(np.mean(episodic_return))
-                                
+                    self.policy.update_normalization_stats(i, rb_obs[i, :, :])
+                    self.update_value_normalization(rb_values[i, :, :], i)         
             rb_returns = rb_advantages + rb_values
 
             # Optimizing the policy and value network
@@ -244,6 +278,7 @@ class MTPPO():
             for epoch in range(self.epoch_opt): # 16
                 # shuffle the indices we use to access the data
                 np.random.shuffle(rb_index)
+                
                 for start in range(0, rb_obs.shape[1], self.min_batch):
                     task_losses = torch.zeros(self.num_tasks)
                     end = start + self.min_batch
@@ -256,10 +291,13 @@ class MTPPO():
                             old_actions = rb_actions.long()[i, batch_index, :]
                         _, newlogprob, entropy, values = self.policy.evaluate(
                             x = rb_obs[i, batch_index, :],
-                            actions = old_actions
+                            actions = old_actions,
+                            task_id = i
                         )
 
-                        self.update_value_normalization(i, values)
+                        values = value_normalizer.normalize(values, i)
+                        print(values)
+                        print(values.shape)
                         
                         ratio = torch.exp(newlogprob.unsqueeze(-1) - rb_logprobs[i, batch_index, :])
 
@@ -296,7 +334,7 @@ class MTPPO():
                     torch.sum(task_losses*self.task_weights).backward()
                     self.opt.step()
 
-            
+                    
             print(f"Training episode {episode}")
             print(f"Training seed {self.seed}")
             print(f"Episodic Return: {np.mean(task_returns)}")

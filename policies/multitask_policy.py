@@ -13,8 +13,9 @@ class MultiTaskPolicy(nn.Module):
         self.continuous = continuous
         self.device = device
         self.log_std = nn.Parameter(torch.full((env.action_space.shape[0],), 1.0))
-        self.obs_means = [np.zeros(self.obs_shape) for _ in range(len(env.tasks))]
-        self.obs_stds = [np.ones(self.obs_shape) for _ in range(len(env.tasks))]
+        self.obs_means = [torch.zeros(env.observation_space.shape[0]+num_tasks).to(device) for _ in range(len(env.tasks))]
+        self.obs_stds = [torch.ones(env.observation_space.shape[0]+num_tasks).to(device) for _ in range(len(env.tasks))]
+        self.counts = [1e-8 for _ in range(len(env.tasks))]  # Avoid division by zero initially
 
         self.embedding = nn.Sequential(
                 nn.Embedding(num_embeddings = num_tasks, embedding_dim = hidden_size),
@@ -65,14 +66,12 @@ class MultiTaskPolicy(nn.Module):
         
         actions = action_dist.sample()
 
-        normalized_obs = self.normalize_state(x, self.obs_means, self.obs_stds)
-        normalized_obs = torch.tensor(normalized_obs, dtype=torch.float32)
-        print(normalized_obs)
+        normalized_obs = self.normalize_state(x, self.obs_means[task_id], self.obs_stds[task_id])
         values = self.critic(normalized_obs)
 
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
-    def evaluate(self, x, actions):
+    def evaluate(self, x, actions, task_id):
         means = self.shared_layers(x)
         #action_probs = self.task_heads[task_id](latent)
 
@@ -84,9 +83,7 @@ class MultiTaskPolicy(nn.Module):
             clamped_cov_matrix = torch.diag_embed(clamped_diagonal) + (torch.diag_embed(action_var) - torch.diag_embed(action_var)).to(self.device)
             action_dist = MultivariateNormal(means, clamped_cov_matrix)
 
-        normalized_obs = self.normalize_state(x, self.obs_means, self.obs_stds)
-        normalized_obs = torch.tensor(normalized_obs, dtype=torch.float32)
-        print(normalized_obs)
+        normalized_obs = self.normalize_state(x, self.obs_means[task_id], self.obs_stds[task_id])
         values = self.critic(normalized_obs)
         # print(self.shared_layers[2].weight.grad)
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
@@ -97,15 +94,33 @@ class MultiTaskPolicy(nn.Module):
     def non_gate_parameters(self):
         return chain(self.shared_layers[0].parameters(), self.shared_layers[-1].parameters())
 
-    def normalize_state(state, mean_state, std_state, epsilon=1e-8):
+    def normalize_state(self, state, mean_state, std_state, epsilon=1e-8):
         return (state - mean_state) / (std_state + epsilon)
     
     def update_normalization_stats(self, task_id, states):
         """
-        Update mean and std for state normalization, using a moving average.
+        Update mean and std for state normalization using a moving average.
         """
-        self.obs_means[task_id] = np.mean(states, axis=0)
-        self.obs_stds[task_id] = np.std(states, axis=0)
+        batch_mean = torch.mean(states, dim=0)
+        batch_var = torch.var(states, dim=0)
+        batch_count = states.shape[0]
+
+        # Update using running mean and variance
+        self.obs_means[task_id], self.obs_stds[task_id], self.counts[task_id] = self.update_mean_var_count(
+            self.obs_means[task_id], self.obs_stds[task_id], self.counts[task_id], batch_mean, batch_var, batch_count
+        )
+    
+    def update_mean_var_count(self, mean, var, count, batch_mean, batch_var, batch_count):
+        delta = batch_mean - mean
+        total_count = count + batch_count
+
+        new_mean = mean + delta * batch_count / total_count
+        m_a = var * count
+        m_b = batch_var * batch_count
+        M2 = m_a + m_b + delta ** 2 * count * batch_count / total_count
+        new_var = M2 / total_count
+
+        return new_mean, torch.sqrt(new_var), total_count
 ##########################################
 
 
