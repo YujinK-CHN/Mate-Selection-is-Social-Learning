@@ -60,7 +60,42 @@ class RewardsNormalizer:
         
         # Normalize the reward using the updated mean and standard deviation
         return (reward - self.mean[task_id]) / (std + self.epsilon)
-       
+    
+class ValueNormalizer:
+    def __init__(self, epsilon=1e-8):
+        self.mean = 0.0
+        self.var = 1.0
+        self.count = epsilon  # Initialize with small count to prevent division by zero
+
+    def update(self, x):
+        batch_mean = np.mean(x)
+        batch_var = np.var(x)
+        batch_count = len(x)
+
+        self.mean, self.var, self.count = self.update_mean_var_count(
+            self.mean, self.var, self.count, batch_mean, batch_var, batch_count
+        )
+
+    @staticmethod
+    def update_mean_var_count(mean, var, count, batch_mean, batch_var, batch_count):
+        delta = batch_mean - mean
+        total_count = count + batch_count
+
+        new_mean = mean + delta * batch_count / total_count
+        m_a = var * count
+        m_b = batch_var * batch_count
+        M2 = m_a + m_b + delta ** 2 * count * batch_count / total_count
+        new_var = M2 / total_count
+
+        return new_mean, new_var, total_count
+
+    def normalize(self, x):
+        return (x - self.mean) / (np.sqrt(self.var) + 1e-8)
+
+    def denormalize(self, x):
+        return x * np.sqrt(self.var) + self.mean
+
+
 class MTPPO():
 
     def __init__(
@@ -76,7 +111,8 @@ class MTPPO():
         self.name = 'mtppo'
         self.hidden_size = config['hidden_size']
 
-        self.task_weights = torch.Tensor([0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5])
+        self.task_weights = torch.Tensor([0.5, 1.0, 1.0, 1.0, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0])
+        self.value_normalizers = [ValueNormalizer() for _ in range(len(env.tasks))]
 
         self.policy = MultiTaskPolicy(
             env = env,
@@ -91,7 +127,7 @@ class MTPPO():
             embedding_dim=config['hidden_size'],
             hidden_dim=config['hidden_size'],
             output_dim=config['hidden_size']
-        )
+        ).to(config['device'])
 
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-8)
 
@@ -110,6 +146,11 @@ class MTPPO():
         
     
     """ TRAINING LOGIC """
+    def update_value_normalization(self, task_id, value_predictions):
+        """
+        Update the running statistics for the value normalization.
+        """
+        self.value_normalizers[task_id].update(value_predictions)
     
     def train(self):
         x = []
@@ -137,20 +178,20 @@ class MTPPO():
             
             task_returns = []
             success_tracker = MultiTaskSuccessTracker(self.num_tasks)
-            
             with torch.no_grad():
                 for i, task in enumerate(self.env.tasks): # 10
                     index = 0
                     episodic_return = []
+                    normalizer = RewardsNormalizer(num_tasks=self.num_tasks)
                     for epoch in range(int((self.batch_size / len(self.env.tasks)) / self.max_cycles)): # 20
                         next_obs, infos = task.reset()
                         one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
                         step_return = 0
-                        normalizer = RewardsNormalizer(num_tasks=self.num_tasks)
                         for step in range(0, self.max_cycles): # 500
                             # rollover the observation 
                             # obs = batchify_obs(next_obs, self.device)
                             obs = torch.FloatTensor(next_obs)
+                            self.policy.update_normalization_stats(obs)
                             obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                             # get actions from skills
@@ -163,6 +204,8 @@ class MTPPO():
 
                             normalizer.update(i, reward)
                             reward = normalizer.normalize(i, reward)
+                            normalized_values = self.value_normalizers[i].normalize(values)
+                            print(normalized_values)
 
                             # add to episode storage
                             rb_obs[i, index] = obs
@@ -170,7 +213,7 @@ class MTPPO():
                             rb_terms[i, index] = terms
                             rb_actions[i, index] = actions
                             rb_logprobs[i, index] = logprobs
-                            rb_values[i, index] = values.flatten()
+                            rb_values[i, index] = normalized_values.flatten()
                             # compute episodic return
                             step_return += rb_rewards[i, index].cpu().numpy()
 
@@ -215,17 +258,10 @@ class MTPPO():
                             x = rb_obs[i, batch_index, :],
                             actions = old_actions
                         )
-                        
-                        logratio = newlogprob.unsqueeze(-1) - rb_logprobs[i, batch_index, :]
-                        ratio = logratio.exp()
 
-                        with torch.no_grad():
-                            # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                            old_approx_kl = (-logratio).mean()
-                            approx_kl = ((ratio - 1) - logratio).mean()
-                            clip_fracs += [
-                                ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
-                            ]
+                        self.update_value_normalization(i, values)
+                        
+                        ratio = torch.exp(newlogprob.unsqueeze(-1) - rb_logprobs[i, batch_index, :])
 
                         # normalize advantaegs
                         advantages = rb_advantages[i, batch_index, :]
@@ -238,7 +274,7 @@ class MTPPO():
                         pg_loss2 = -rb_advantages[i, batch_index, :] * torch.clamp(
                             ratio, 1 - self.clip_coef, 1 + self.clip_coef
                         )
-                        pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+                        pg_loss = -torch.mean(torch.min(pg_loss1, pg_loss2))
 
                         # Value loss
                         v_loss_unclipped = (values - rb_returns[i, batch_index, :]) ** 2
@@ -248,8 +284,8 @@ class MTPPO():
                             self.clip_coef,
                         )
                         v_loss_clipped = (v_clipped - rb_returns[i, batch_index, :]) ** 2
-                        v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                        v_loss = 0.5 * v_loss_max.mean()
+                        v_loss_min = torch.min(v_loss_unclipped, v_loss_clipped)
+                        v_loss = torch.mean(0.5 * v_loss_min)
 
                         entropy_loss = entropy.max()
                         loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
@@ -271,7 +307,8 @@ class MTPPO():
                 eval_return, mean_success_rate = self.eval(self.policy)
                 x_eval.append(episode)
                 y_eval.append(np.mean(eval_return))
-                print(f"Training episode {episode}")
+                print(f"Evaluating episode {episode}")
+                print(f"Evaluating seed {self.seed}")
                 print(f"Evaluation Return: {eval_return}")
                 print(f"Evaluation success rate: {mean_success_rate}")
                 print("\n-------------------------------------------\n")
@@ -285,9 +322,8 @@ class MTPPO():
                 plt.pause(0.05)
         plt.show(block=False)
         
-        return x, y, x_eval, y_eval
+        return x, y, x_eval, y_eval       
         
-
     def eval(self, policy):
         task_returns = []
         success_tracker_eval = MultiTaskSuccessTracker(self.num_tasks)

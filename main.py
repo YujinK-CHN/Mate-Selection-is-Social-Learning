@@ -71,20 +71,20 @@ if __name__ == "__main__":
         'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         'continuous': True,
         'pop_size': 3,
-        'ent_coef': 5e-3,
+        'ent_coef': 0.01,
         'vf_coef': 0.1,
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
         'batch_size': 100000,
         'max_path_length': 500,
-        'min_batch': 32,
+        'min_batch': 256,
         'epoch_merging': 4,
         'epoch_finetune': 8,
         'epoch_opt': 16,
         'total_episodes': 100,
         'hidden_size': 512,
-        'lr': 0.0005
+        'lr': 0.001
     }
 
     config_mtsac = {
@@ -115,6 +115,7 @@ if __name__ == "__main__":
     multi_task_env_0 = MultiTaskEnv(0)
     multi_task_env_42 = MultiTaskEnv(42)
     multi_task_env_100 = MultiTaskEnv(100)
+    print(multi_task_env_0.tasks)
 
     """ SLEPPO SETUP """
     sle = SLE_MTPPO(multi_task_env_0, config)
@@ -133,8 +134,8 @@ if __name__ == "__main__":
     ''''''
     
 
-    #run_seeds(seeds_ppo)
+    run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
-    training(config, mtppo3)
+    #training(config, mtppo3)
     #training(config, sle)
     
