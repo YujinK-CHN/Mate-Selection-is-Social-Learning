@@ -74,7 +74,7 @@ if __name__ == "__main__":
         'normalize_values': False,
         'normalize_rewards': False,
         'pop_size': 3,
-        'ent_coef': 0.01,
+        'ent_coef': 5e-3,
         'vf_coef': 0.1,
         'lr_clip_range': 0.2,
         'discount': 0.99,
@@ -87,7 +87,7 @@ if __name__ == "__main__":
         'epoch_opt': 16,
         'total_episodes': 100,
         'hidden_size': 512,
-        'lr': 0.001
+        'lr': 0.0005
     }
 
     config_mtsac = {

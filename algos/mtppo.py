@@ -46,11 +46,15 @@ class MTPPO():
         self.device = config['device']
         self.name = 'mtppo'
         self.hidden_size = config['hidden_size']
+        self.normalize_states = config['normalize_states']
+        self.normalize_values = config['normalize_values']
+        self.normalize_rewards = config['normalize_rewards']
         self.policy = MultiTaskPolicy(
             env = env,
             num_tasks = len(env.tasks),
             hidden_size = config['hidden_size'],
             continuous = config['continuous'],
+            normalize_states = config['normalize_states'],
             device = config['device']
         ).to(config['device'])
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-8)
@@ -73,8 +77,10 @@ class MTPPO():
     
     def train(self):
 
-        y1 = []
-        y2 = []
+        x = []
+        y = []
+        x_eval = []
+        y_eval = []
         y3 = []
         
         # train for n number of episodes
@@ -110,7 +116,7 @@ class MTPPO():
                             obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                             # get actions from skills
-                            actions, logprobs, entropy, values = self.policy.act(obs)
+                            actions, logprobs, entropy, values = self.policy.act(obs, i)
 
                             # execute the environment and log data
                             next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
@@ -164,7 +170,8 @@ class MTPPO():
                         old_actions = rb_actions.long()[batch_index, :]
                     _, newlogprob, entropy, values = self.policy.evaluate(
                         x = rb_obs[batch_index, :],
-                        actions = old_actions
+                        actions = old_actions,
+                        task_id=i
                     )
                     
                     logratio = newlogprob.unsqueeze(-1) - rb_logprobs[batch_index, :]
@@ -209,30 +216,43 @@ class MTPPO():
                     loss.backward()
                     self.opt.step()
 
-            mean_eval_return, mean_success_rate = self.eval()
-            
             print(f"Training episode {episode}")
             print(f"Training seed {self.seed}")
             print(f"Episodic Return: {np.mean(task_returns)}")
             print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
-            print(f"Evaluation Return: {mean_eval_return}")
-            print(f"Evaluation success rate: {mean_success_rate}")
             print(f"Episodic Loss: {loss.item()}")
-            #print(f"overall success rate: {success_tracker.overall_success_rate() * 100:.2f}")
             print("\n-------------------------------------------\n")
+            if episode % 10 == 0:
+                eval_return, mean_success_rate = self.eval(self.policy)
+                x_eval.append(episode)
+                y_eval.append(np.mean(eval_return))
+                print(f"Evaluating episode {episode}")
+                print(f"Evaluating seed {self.seed}")
+                print(f"Evaluation Return: {eval_return}")
+                print(f"Evaluation success rate: {mean_success_rate}")
+                print("\n-------------------------------------------\n")
 
-            x = np.linspace(0, episode, episode+1)
-            y1.append(np.mean(task_returns))
-            y2.append(mean_eval_return)
+            x.append(episode)
+            y.append(np.mean(task_returns))
+            
             #y3.append(success_tracker.overall_success_rate())
             if episode % 10 == 0:
-                plt.plot(x, y1)
-                plt.plot(x, y2)
-                #plt.plot(x, y3)
+                plt.figure()
+                plt.plot(x, y)
+                plt.title(f"Training return for {self.seed}")
+                plt.xlabel("episodes")
+                plt.ylabel("mean rewards")
+                plt.pause(0.05)
+
+                plt.figure()
+                plt.plot(x_eval, y_eval)
+                plt.title(f"Evaluating return for {self.seed}")
+                plt.xlabel("episodes")
+                plt.ylabel("mean rewards")
                 plt.pause(0.05)
         plt.show(block=False)
         
-        return x, y1
+        return x, y, x_eval, y_eval       
         
 
     def eval(self, policy):
@@ -256,7 +276,7 @@ class MTPPO():
                         obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                         # get actions from skills
-                        actions, logprobs, entropy, values = policy.act(obs)
+                        actions, logprobs, entropy, values = policy.act(obs, i)
 
                         # execute the environment and log data
                         next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())

@@ -69,7 +69,7 @@ class MultiTaskPolicy(nn.Module):
         
         actions = action_dist.sample()
 
-        if self.normalize_values:
+        if self.normalize_states:
             x = self.normalize_states(x, self.obs_means[task_id], self.obs_stds[task_id])
         values = self.critic(x)
 

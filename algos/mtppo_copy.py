@@ -111,7 +111,7 @@ class MTPPO():
         self.name = 'mtppo'
         self.hidden_size = config['hidden_size']
 
-        self.task_weights = torch.Tensor([1.0, 1.0, 1.0])
+        self.task_weights = torch.Tensor([1.5, 1.0, 1.0])
 
         self.policy = MultiTaskPolicy(
             env = env,
@@ -327,6 +327,7 @@ class MTPPO():
                 print(f"Evaluating episode {episode}")
                 print(f"Evaluating seed {self.seed}")
                 print(f"Evaluation Return: {eval_return}")
+                print(f"Evaluation Mean Return: {np.mean(eval_return)}")
                 print(f"Evaluation success rate: {mean_success_rate}")
                 print("\n-------------------------------------------\n")
 
@@ -335,7 +336,18 @@ class MTPPO():
             
             #y3.append(success_tracker.overall_success_rate())
             if episode % 10 == 0:
+                plt.figure()
                 plt.plot(x, y)
+                plt.title(f"Training return for {self.seed}")
+                plt.xlabel("episodes")
+                plt.ylabel("mean rewards")
+                plt.pause(0.05)
+
+                plt.figure()
+                plt.plot(x_eval, y_eval)
+                plt.title(f"Evaluating return for {self.seed}")
+                plt.xlabel("episodes")
+                plt.ylabel("mean rewards")
                 plt.pause(0.05)
         plt.show(block=False)
         
@@ -358,7 +370,7 @@ class MTPPO():
 
                     if self.normalize_rewards:
                         normalizer = RewardsNormalizer(num_tasks=self.num_tasks)
-                        
+
                     while not terms and not truncs:
                         # rollover the observation 
                         #obs = batchify_obs(next_obs, self.device)
