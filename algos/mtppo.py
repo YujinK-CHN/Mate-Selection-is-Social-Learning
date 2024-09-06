@@ -264,7 +264,7 @@ class MTPPO():
                 # render 5 episodes out
                 episodic_return = []
                 for episode in range(5):
-                    next_obs, infos = task.reset()
+                    next_obs, infos = task.reset(self.seed)
                     one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
                     terms = False
                     truncs = False
