@@ -97,7 +97,7 @@ if __name__ == "__main__":
         'epoch_merging': 4,
         'epoch_finetune': 8,
         'epoch_opt': 256,
-        'total_episodes': 100,
+        'total_episodes': 50,
         'hidden_size': 128,
         'lr': 0.0005
     }
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     """ ENV SETUP """
     multi_task_env_0 = MultiTaskEnv(0)
     multi_task_env_42 = MultiTaskEnv(42)
-    multi_task_env_100 = MultiTaskEnv(100)
+    multi_task_env_5 = MultiTaskEnv(5)
     multi_task_env_64 = MultiTaskEnv(64)
     multi_task_env_256 = MultiTaskEnv(256)
     multi_task_env_512 = MultiTaskEnv(512)
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     """ MTPPO SETUP """
     mtppo1 = MTPPO(multi_task_env_0, config)
     mtppo2 = MTPPO(multi_task_env_42, config)
-    mtppo3 = MTPPO(multi_task_env_100, config)
+    mtppo3 = MTPPO(multi_task_env_5, config)
     mtppo4 = MTPPO(multi_task_env_64, config)
     mtppo5 = MTPPO(multi_task_env_256, config)
     mtppo6 = MTPPO(multi_task_env_512, config)
@@ -150,13 +150,13 @@ if __name__ == "__main__":
     """ MTSAC SETUP """
     mtsac1 = MultiTaskSAC(multi_task_env_0, config_mtsac)
     mtsac2 = MultiTaskSAC(multi_task_env_42, config_mtsac)
-    mtsac3 = MultiTaskSAC(multi_task_env_100, config_mtsac)
+    mtsac3 = MultiTaskSAC(multi_task_env_5, config_mtsac)
     seeds_sac = [mtsac1, mtsac2, mtsac3]
     ''''''
     
 
-    #run_seeds(seeds_ppo)
+    run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
-    training(config, mtppo3)
+    #training(config, mtppo3)
     #training(config, sle)
     
