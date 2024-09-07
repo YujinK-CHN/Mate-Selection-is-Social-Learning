@@ -50,6 +50,7 @@ class MTPPO():
         self.normalize_states = config['normalize_states']
         self.normalize_values = config['normalize_values']
         self.normalize_rewards = config['normalize_rewards']
+        self.num_tasks = len(env.tasks)
 
         self.policy = MultiTaskPolicy(
             env = env,
@@ -75,7 +76,7 @@ class MTPPO():
         self.ent_coef = config['ent_coef']
         self.vf_coef = config['vf_coef']
         self.continuous = config['continuous']
-        self.num_tasks = len(env.tasks)
+        
     
     """ TRAINING LOGIC """
     
@@ -88,10 +89,10 @@ class MTPPO():
         y3 = []
         
         # train for n number of episodes
-        for episode in range(self.total_episodes): # 4000
+        for episode in range(self.total_episodes): 
             self.policy.train()
             # clear memory
-            rb_obs = torch.zeros((self.batch_size, self.obs_shape + len(self.env.tasks))).to(self.device)
+            rb_obs = torch.zeros((self.batch_size, self.obs_shape + self.num_tasks)).to(self.device)
             if self.continuous == True:
                 rb_actions = torch.zeros((self.batch_size, self.env.action_space.shape[0])).to(self.device)
             else:
@@ -105,13 +106,13 @@ class MTPPO():
             # sampling
             index = 0
             task_returns = []
-            success_tracker = MultiTaskSuccessTracker(len(self.env.tasks))
+            success_tracker = MultiTaskSuccessTracker(self.num_tasks)
             with torch.no_grad():
                 for i, task in enumerate(self.env.tasks): # 10
                     episodic_return = []
-                    for epoch in range(int((self.batch_size / len(self.env.tasks)) / self.max_cycles)): # 10
+                    for epoch in range(int((self.batch_size / self.num_tasks) / self.max_cycles)): # 10
                         next_obs, infos = task.reset(self.seed)
-                        one_hot_id = torch.diag(torch.ones(len(self.env.tasks)))[i]
+                        one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
                         step_return = 0
                         for step in range(0, self.max_cycles): # 500
                             # rollover the observation 
@@ -202,15 +203,15 @@ class MTPPO():
                     )
                     pg_loss = -torch.mean(torch.min(pg_loss1, pg_loss2))
 
-                    v_loss = nn.MSELoss()(values, rb_advantages[batch_index, :])
+                    v_loss = nn.MSELoss()(values, advantages)
 
                     entropy_loss = entropy.max()
                     loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
 
+                    '''
                     self.opt.zero_grad()
                     loss.backward()
                     self.opt.step()
-
                     '''
                     # Calculate gradients and perform backward propagation for actor network
                     self.actor_opt.zero_grad()
@@ -221,7 +222,7 @@ class MTPPO():
                     self.critic_opt.zero_grad()
                     v_loss.backward()
                     self.critic_opt.step()
-                    '''
+                    
 
             print(f"Training episode {episode}")
             print(f"Training seed {self.seed}")

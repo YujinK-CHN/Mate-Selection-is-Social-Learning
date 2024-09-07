@@ -90,13 +90,13 @@ if __name__ == "__main__":
         'vf_coef': 0.1,
         'lr_clip_range': 0.2,
         'discount': 0.99,
-        'gae_lambda': 0.97,
+        'gae_lambda': 0.95,
         'batch_size': 5000,
         'max_path_length': 500,
-        'min_batch': 32,
+        'min_batch': 128,
         'epoch_merging': 4,
         'epoch_finetune': 8,
-        'epoch_opt': 256,
+        'epoch_opt': 32,
         'total_episodes': 50,
         'hidden_size': 128,
         'lr': 0.0005
@@ -128,10 +128,10 @@ if __name__ == "__main__":
 
     """ ENV SETUP """
     multi_task_env_0 = MultiTaskEnv(0)
+    multi_task_env_1 = MultiTaskEnv(1)
     multi_task_env_42 = MultiTaskEnv(42)
-    multi_task_env_5 = MultiTaskEnv(5)
     multi_task_env_64 = MultiTaskEnv(64)
-    multi_task_env_256 = MultiTaskEnv(256)
+    multi_task_env_100 = MultiTaskEnv(100)
     multi_task_env_512 = MultiTaskEnv(512)
     print(multi_task_env_0.tasks)
 
@@ -141,16 +141,16 @@ if __name__ == "__main__":
     """ MTPPO SETUP """
     mtppo1 = MTPPO(multi_task_env_0, config)
     mtppo2 = MTPPO(multi_task_env_42, config)
-    mtppo3 = MTPPO(multi_task_env_5, config)
+    mtppo3 = MTPPO(multi_task_env_1, config)
     mtppo4 = MTPPO(multi_task_env_64, config)
-    mtppo5 = MTPPO(multi_task_env_256, config)
+    mtppo5 = MTPPO(multi_task_env_100, config)
     mtppo6 = MTPPO(multi_task_env_512, config)
     seeds_ppo = [mtppo1, mtppo2, mtppo3, mtppo4, mtppo5, mtppo6]
 
     """ MTSAC SETUP """
     mtsac1 = MultiTaskSAC(multi_task_env_0, config_mtsac)
     mtsac2 = MultiTaskSAC(multi_task_env_42, config_mtsac)
-    mtsac3 = MultiTaskSAC(multi_task_env_5, config_mtsac)
+    mtsac3 = MultiTaskSAC(multi_task_env_1, config_mtsac)
     seeds_sac = [mtsac1, mtsac2, mtsac3]
     ''''''
     
