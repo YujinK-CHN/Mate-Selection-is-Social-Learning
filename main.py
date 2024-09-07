@@ -6,7 +6,7 @@ from pipline.train import training
 from algos.ppo import PPO
 from algos.ippo import IPPO
 from algos.mappo import MAPPO
-from algos.mtppo_copy import MTPPO
+from algos.mtppo import MTPPO
 from algos.sle_ppo import SLE_MTPPO
 from algos.mtsac import MultiTaskSAC
 
@@ -59,7 +59,7 @@ def run_seeds(seeds):
 
 class MultiTaskEnv():
     def __init__(self, seed):
-        self.tasks = [create_metaworld(seed)[i] for i in [0, 5, 8]] # [task1, task2]
+        self.tasks = [create_metaworld(seed)[i] for i in [0]] # [0, 5, 8]
         self.current_task = None
         self.observation_space = self.tasks[0].observation_space
         self.action_space = self.tasks[0].action_space
@@ -91,14 +91,14 @@ if __name__ == "__main__":
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
-        'batch_size': 30000,
+        'batch_size': 5000,
         'max_path_length': 500,
-        'min_batch': 256,
+        'min_batch': 32,
         'epoch_merging': 4,
         'epoch_finetune': 8,
-        'epoch_opt': 16,
+        'epoch_opt': 256,
         'total_episodes': 100,
-        'hidden_size': 512,
+        'hidden_size': 128,
         'lr': 0.0005
     }
 
@@ -130,6 +130,9 @@ if __name__ == "__main__":
     multi_task_env_0 = MultiTaskEnv(0)
     multi_task_env_42 = MultiTaskEnv(42)
     multi_task_env_100 = MultiTaskEnv(100)
+    multi_task_env_64 = MultiTaskEnv(64)
+    multi_task_env_256 = MultiTaskEnv(256)
+    multi_task_env_512 = MultiTaskEnv(512)
     print(multi_task_env_0.tasks)
 
     """ SLEPPO SETUP """
@@ -139,7 +142,10 @@ if __name__ == "__main__":
     mtppo1 = MTPPO(multi_task_env_0, config)
     mtppo2 = MTPPO(multi_task_env_42, config)
     mtppo3 = MTPPO(multi_task_env_100, config)
-    seeds_ppo = [mtppo1, mtppo2, mtppo3]
+    mtppo4 = MTPPO(multi_task_env_64, config)
+    mtppo5 = MTPPO(multi_task_env_256, config)
+    mtppo6 = MTPPO(multi_task_env_512, config)
+    seeds_ppo = [mtppo1, mtppo2, mtppo3, mtppo4, mtppo5, mtppo6]
 
     """ MTSAC SETUP """
     mtsac1 = MultiTaskSAC(multi_task_env_0, config_mtsac)
@@ -149,8 +155,8 @@ if __name__ == "__main__":
     ''''''
     
 
-    run_seeds(seeds_ppo)
+    #run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
-    #training(config, mtppo3)
+    training(config, mtppo3)
     #training(config, sle)
     

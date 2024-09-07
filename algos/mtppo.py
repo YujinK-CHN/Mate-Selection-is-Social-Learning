@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
@@ -49,6 +50,7 @@ class MTPPO():
         self.normalize_states = config['normalize_states']
         self.normalize_values = config['normalize_values']
         self.normalize_rewards = config['normalize_rewards']
+
         self.policy = MultiTaskPolicy(
             env = env,
             num_tasks = len(env.tasks),
@@ -58,6 +60,8 @@ class MTPPO():
             device = config['device']
         ).to(config['device'])
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-8)
+        self.actor_opt = optim.Adam(self.policy.shared_layers.parameters(), lr=config['lr'], eps=1e-8)
+        self.critic_opt = optim.Adam(self.policy.critic.parameters(), lr=config['lr'], eps=1e-8)
 
         self.max_cycles = config['max_path_length']
         self.pop_size = config['pop_size']
@@ -141,7 +145,7 @@ class MTPPO():
 
                         episodic_return.append(step_return)
 
-                        # skills advantage
+                        # advantage
                         gae = 0
                         for t in range(index-2, (index-self.max_cycles)-1, -1):
                             delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
@@ -198,16 +202,7 @@ class MTPPO():
                     )
                     pg_loss = -torch.mean(torch.min(pg_loss1, pg_loss2))
 
-                    # Value loss
-                    v_loss_unclipped = (values - rb_returns[batch_index, :]) ** 2
-                    v_clipped = rb_values[batch_index, :] + torch.clamp(
-                        values - rb_values[batch_index, :],
-                        -self.clip_coef,
-                        self.clip_coef,
-                    )
-                    v_loss_clipped = (v_clipped - rb_returns[batch_index, :]) ** 2
-                    v_loss_min = torch.min(v_loss_unclipped, v_loss_clipped)
-                    v_loss = torch.mean(0.5 * v_loss_min)
+                    v_loss = nn.MSELoss()(values, rb_advantages[batch_index, :])
 
                     entropy_loss = entropy.max()
                     loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
@@ -216,11 +211,24 @@ class MTPPO():
                     loss.backward()
                     self.opt.step()
 
+                    '''
+                    # Calculate gradients and perform backward propagation for actor network
+                    self.actor_opt.zero_grad()
+                    pg_loss.backward(retain_graph=True)
+                    self.actor_opt.step()
+
+                    # Calculate gradients and perform backward propagation for critic network
+                    self.critic_opt.zero_grad()
+                    v_loss.backward()
+                    self.critic_opt.step()
+                    '''
+
             print(f"Training episode {episode}")
             print(f"Training seed {self.seed}")
             print(f"Episodic Return: {np.mean(task_returns)}")
             print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
-            print(f"Episodic Loss: {loss.item()}")
+            print(f"Actor Loss: {pg_loss.item()}")
+            print(f"Critic Loss: {v_loss}")
             print("\n-------------------------------------------\n")
             if episode % 10 == 0:
                 eval_return, mean_success_rate = self.eval(self.policy)
@@ -238,19 +246,14 @@ class MTPPO():
             
             #y3.append(success_tracker.overall_success_rate())
             if episode % 10 == 0:
-                plt.figure()
+                
                 plt.plot(x, y)
-                plt.title(f"Training return for {self.seed}")
-                plt.xlabel("episodes")
-                plt.ylabel("mean rewards")
+                plt.plot(x_eval, y_eval)
+                plt.title(f"Episode returns (train and eval) for seed {self.seed}")
+                plt.xlabel("Episodes")
+                plt.ylabel("Mean rewards")
                 plt.pause(0.05)
 
-                plt.figure()
-                plt.plot(x_eval, y_eval)
-                plt.title(f"Evaluating return for {self.seed}")
-                plt.xlabel("episodes")
-                plt.ylabel("mean rewards")
-                plt.pause(0.05)
         plt.show(block=False)
         
         return x, y, x_eval, y_eval       

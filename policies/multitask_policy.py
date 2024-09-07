@@ -28,11 +28,11 @@ class MultiTaskPolicy(nn.Module):
             )
         '''
         self.shared_layers = nn.Sequential(
-            self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size)),
+            nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size),
             nn.Tanh(),
-            self._layer_init(nn.Linear(hidden_size, hidden_size)),
+            nn.Linear(hidden_size, hidden_size),
             nn.Tanh(),
-            self._layer_init(nn.Linear(hidden_size, env.action_space.shape[0])),
+            nn.Linear(hidden_size, env.action_space.shape[0]),
         )
         '''
         self.task_heads = nn.ModuleList([
@@ -44,11 +44,11 @@ class MultiTaskPolicy(nn.Module):
         ])
         '''
         self.critic = nn.Sequential(
-            self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size)),
+            nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size),
             nn.Tanh(),
-            self._layer_init(nn.Linear(hidden_size, hidden_size)),
+            nn.Linear(hidden_size, hidden_size),
             nn.Tanh(),
-            self._layer_init(nn.Linear(hidden_size, 1))
+            nn.Linear(hidden_size, 1)
         )
 
     def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
