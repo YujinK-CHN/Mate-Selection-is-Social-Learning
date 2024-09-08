@@ -57,7 +57,6 @@ class MTPPO():
             num_tasks = len(env.tasks),
             hidden_size = config['hidden_size'],
             continuous = config['continuous'],
-            normalize_states = config['normalize_states'],
             device = config['device']
         ).to(config['device'])
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-8)
@@ -105,15 +104,18 @@ class MTPPO():
 
             # sampling
             index = 0
+            
             task_returns = []
-            success_tracker = MultiTaskSuccessTracker(self.num_tasks)
+            success_rate = []
             with torch.no_grad():
                 for i, task in enumerate(self.env.tasks): # 10
                     episodic_return = []
+                    episodic_sr = []
                     for epoch in range(int((self.batch_size / self.num_tasks) / self.max_cycles)): # 10
                         next_obs, infos = task.reset(self.seed)
                         one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
                         step_return = 0
+                        num_success = 0
                         for step in range(0, self.max_cycles): # 500
                             # rollover the observation 
                             # obs = batchify_obs(next_obs, self.device)
@@ -125,8 +127,8 @@ class MTPPO():
 
                             # execute the environment and log data
                             next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
-                            success = infos.get('success', False)
-                            success_tracker.update(i, success)
+                            success = infos.get('success', 0.0)
+                            num_success += success
 
                             # add to episode storage
                             rb_obs[index] = obs
@@ -145,15 +147,19 @@ class MTPPO():
                             
 
                         episodic_return.append(step_return)
+                        episodic_sr.append(num_success/self.max_cycles)
 
                         # advantage
                         gae = 0
+                        # normalize rewards
+                        rb_rewards[(index-self.max_cycles):(index-1)] = (rb_rewards[(index-self.max_cycles):(index-1)] - rb_rewards[(index-self.max_cycles):(index-1)].mean()) / (torch.std(rb_rewards[(index-self.max_cycles):(index-1)]) + 1e-8)
                         for t in range(index-2, (index-self.max_cycles)-1, -1):
                             delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
                             gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
                             rb_advantages[t] = gae
 
                     task_returns.append(np.mean(episodic_return))
+                    success_rate.append(np.mean(episodic_sr))
                                 
             rb_returns = rb_advantages + rb_values
 
@@ -182,33 +188,23 @@ class MTPPO():
                     logratio = newlogprob.unsqueeze(-1) - rb_logprobs[batch_index, :]
                     ratio = logratio.exp()
 
-                    with torch.no_grad():
-                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                        old_approx_kl = (-logratio).mean()
-                        approx_kl = ((ratio - 1) - logratio).mean()
-                        clip_fracs += [
-                            ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
-                        ]
-
                     # normalize advantaegs
                     advantages = rb_advantages[batch_index, :]
-                    advantages = (advantages - advantages.mean()) / (
-                        advantages.std() + 1e-8
-                    )
+                    # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
                     # Policy loss
                     pg_loss1 = rb_advantages[batch_index, :] * ratio
                     pg_loss2 = rb_advantages[batch_index, :] * torch.clamp(
                         ratio, 1 - self.clip_coef, 1 + self.clip_coef
                     )
-                    pg_loss = -torch.mean(torch.min(pg_loss1, pg_loss2))
+                    pg_loss = torch.mean(torch.min(pg_loss1, pg_loss2))
 
                     v_loss = nn.MSELoss()(values, advantages)
 
                     entropy_loss = entropy.max()
                     loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
 
-                    '''
+                    
                     self.opt.zero_grad()
                     loss.backward()
                     self.opt.step()
@@ -222,12 +218,12 @@ class MTPPO():
                     self.critic_opt.zero_grad()
                     v_loss.backward()
                     self.critic_opt.step()
-                    
+                    '''
 
             print(f"Training episode {episode}")
             print(f"Training seed {self.seed}")
             print(f"Episodic Return: {np.mean(task_returns)}")
-            print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
+            print(f"Episodic success rate: {np.mean(success_rate)}")
             print(f"Actor Loss: {pg_loss.item()}")
             print(f"Critic Loss: {v_loss}")
             print("\n-------------------------------------------\n")

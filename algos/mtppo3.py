@@ -118,7 +118,6 @@ class MTPPO():
             num_tasks = len(env.tasks),
             hidden_size = config['hidden_size'],
             continuous = config['continuous'],
-            normalize_states = config['normalize_states'],
             device = config['device']
         ).to(config['device'])
 
