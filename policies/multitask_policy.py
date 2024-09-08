@@ -13,7 +13,7 @@ class MultiTaskPolicy(nn.Module):
         self.env = env
         self.continuous = continuous
         self.device = device
-        self.log_std = nn.Parameter(torch.full((env.action_space.shape[0],), 1.0).log()).to(self.device)
+        self.log_std = nn.Parameter(torch.full((env.action_space.shape[0],), 1.0)).to(self.device)
 
         '''
         self.embedding = nn.Sequential(
@@ -47,9 +47,9 @@ class MultiTaskPolicy(nn.Module):
             self._layer_init(nn.Linear(hidden_size, 1))
         )
 
-    def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
+    def _layer_init(self, layer, std=np.sqrt(2)):
         torch.nn.init.xavier_uniform_(layer.weight, std)
-        torch.nn.init.zeros_(layer.bias, bias_const)
+        torch.nn.init.zeros_(layer.bias)
         return layer
 
     def act(self, x, task_id):
