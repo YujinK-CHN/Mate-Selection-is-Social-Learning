@@ -67,7 +67,7 @@ class MultiTaskPolicy(nn.Module):
             
             action_dist = Normal(means, self.log_std)
         
-        actions = action_dist.sample()
+        actions = torch.tanh(action_dist.sample())
 
         values = self.critic(x)
 

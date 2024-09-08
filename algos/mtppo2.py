@@ -158,10 +158,11 @@ class MTPPO():
                             gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
                             rb_advantages[t] = gae
 
+                        
                     task_returns.append(np.mean(episodic_return))
                     success_rate.append(np.mean(episodic_sr))
                                 
-
+            print(rb_actions)
             # Optimizing the policy and value network
          
             rb_index = np.arange(rb_obs.shape[0])
