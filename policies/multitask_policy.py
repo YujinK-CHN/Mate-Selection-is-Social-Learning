@@ -29,6 +29,7 @@ class MultiTaskPolicy(nn.Module):
             self._layer_init(nn.Linear(hidden_size, hidden_size)),
             nn.Tanh(),
             self._layer_init(nn.Linear(hidden_size, env.action_space.shape[0])),
+            nn.Tanh(),
         )
         '''
         self.task_heads = nn.ModuleList([
@@ -44,7 +45,8 @@ class MultiTaskPolicy(nn.Module):
             nn.Tanh(),
             self._layer_init(nn.Linear(hidden_size, hidden_size)),
             nn.Tanh(),
-            self._layer_init(nn.Linear(hidden_size, 1))
+            self._layer_init(nn.Linear(hidden_size, 1)),
+            nn.Tanh(),
         )
 
     def _layer_init(self, layer, std=np.sqrt(2)):

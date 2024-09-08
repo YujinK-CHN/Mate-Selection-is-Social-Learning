@@ -103,12 +103,13 @@ class MTPPO():
             rb_values = torch.zeros((self.batch_size, 1)).to(self.device)
 
             # sampling
-            index = 0
+            
             
             epoch_task_returns = []
             epoch_success_rate = []
             rb_index = np.arange(rb_obs.shape[0])
             for epoch in range(self.epoch_opt): # 16
+                index = 0
                 task_returns = []
                 success_rate = []
                 with torch.no_grad():
@@ -162,11 +163,11 @@ class MTPPO():
                                 gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
                                 rb_advantages[t] = gae
 
+                        
                         task_returns.append(np.mean(episodic_return))
                         success_rate.append(np.mean(episodic_sr))
                 epoch_task_returns.append(np.mean(task_returns))
                 epoch_success_rate.append(np.mean(success_rate))
-                                
 
                 # Optimizing the policy and value network
          

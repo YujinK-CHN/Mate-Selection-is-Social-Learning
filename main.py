@@ -98,8 +98,8 @@ if __name__ == "__main__":
         'epoch_finetune': 8,
         'epoch_opt': 16,
         'total_episodes': 50,
-        'hidden_size': 64,
-        'lr': 0.0005
+        'hidden_size': 128,
+        'lr': 0.005
     }
 
     config_mtsac = {
