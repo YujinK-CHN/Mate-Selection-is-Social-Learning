@@ -34,10 +34,10 @@ def random_seeds(min=0, max=1024, num_seeds = 6):
 
 def seeding(algo_name, seeds, config):
         envs = []
-        seeds = []
         for seed in seeds:
             envs.append(MultiTaskEnv(seed))
         print(envs[0].tasks)
+        seeds = []
         if algo_name == 'mtppo':
             for env in envs:
                 seeds.append(MTPPO(env, config))
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     """ ENV SETUP """
     
     seeds = random_seeds()
-    seeds_ppo = seeding('mtppo', [0, 1, 100, 42, 512, 64], config)
+    seeds_ppo = seeding('mtppo', seeds, config)
     run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
     #training(config, mtppo6)
