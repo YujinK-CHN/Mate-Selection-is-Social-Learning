@@ -199,7 +199,7 @@ class MTPPO():
                         ratio, 1 - self.clip_coef, 1 + self.clip_coef
                     )
                     pg_loss = torch.min(pg_loss1, pg_loss2)
-                    pg_loss += self.ent_coef * entropy
+                    pg_loss += self.ent_coef * entropy.unsqueeze(-1)
 
                     actor_loss = -pg_loss.mean()
 
@@ -226,7 +226,7 @@ class MTPPO():
             print(f"Training seed {self.seed}")
             print(f"Episodic Return: {np.mean(task_returns)}")
             print(f"Episodic success rate: {np.mean(success_rate)}")
-            print(f"Actor Loss: {pg_loss.item()}")
+            print(f"Actor Loss: {actor_loss.item()}")
             print(f"Critic Loss: {v_loss}")
             print("\n-------------------------------------------\n")
             if episode % 10 == 0:
