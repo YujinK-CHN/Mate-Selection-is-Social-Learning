@@ -59,6 +59,7 @@ class MTPPO():
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
+        self.max_grad_norm = 0.5
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-8)
         self.actor_opt = optim.Adam(self.policy.shared_layers.parameters(), lr=config['lr'], eps=1e-8)
         self.critic_opt = optim.Adam(self.policy.critic.parameters(), lr=config['lr'], eps=1e-8)
@@ -172,6 +173,14 @@ class MTPPO():
             for epoch in range(self.epoch_opt): # 16
                 # shuffle the indices we use to access the data
                 # np.random.shuffle(rb_index)
+                '''
+                # learning Rate annealing
+                frac = (episode - 1.0) / self.total_episodes
+                new_lr = self.lr * (1.0 - frac)
+                new_lr = max(new_lr, 0.0)
+                self.actor_opt.param_groups[0]["lr"] = new_lr
+                self.critic_opt.param_groups[0]["lr"] = new_lr
+                '''
                 for start in range(0, rb_obs.shape[0], self.min_batch):
                     # select the indices we want to train on
                     end = start + self.min_batch
@@ -214,11 +223,13 @@ class MTPPO():
                     # Calculate gradients and perform backward propagation for actor network
                     self.actor_opt.zero_grad()
                     actor_loss.backward(retain_graph=True)
+                    nn.utils.clip_grad_norm_(self.policy.shared_layers.parameters(), self.max_grad_norm)
                     self.actor_opt.step()
 
                     # Calculate gradients and perform backward propagation for critic network
                     self.critic_opt.zero_grad()
                     v_loss.backward()
+                    nn.utils.clip_grad_norm_(self.policy.critic.parameters(), self.max_grad_norm)
                     self.critic_opt.step()
                     
 

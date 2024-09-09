@@ -27,6 +27,24 @@ def create_metaworld(seed):
         training_envs.append(env)
     return training_envs
 
+def random_seeds(min=0, max=1024, num_seeds = 6):
+     seeds = [random.randint(min, max) for _ in range(num_seeds)]
+     return seeds
+
+def seeding(algo_name, seeds, config):
+        envs = []
+        seeds = []
+        for seed in seeds:
+            envs.append(MultiTaskEnv(seed))
+        print(envs[0].tasks)
+        if algo_name == 'mtppo':
+            for env in envs:
+                seeds.append(MTPPO(env, config))
+        if algo_name == 'mtsac':
+            for env in envs:
+                seeds.append(MultiTaskSAC(env, config))
+        return seeds
+
 def run_seeds(seeds):
         pool = mp.Pool()
         process_inputs = [(config, seeds[i]) for i in range(len(seeds))]
@@ -124,37 +142,12 @@ if __name__ == "__main__":
 
         
     
-
-
-    """ ENV SETUP """
-    multi_task_env_0 = MultiTaskEnv(0)
-    multi_task_env_1 = MultiTaskEnv(1)
-    multi_task_env_42 = MultiTaskEnv(42)
-    multi_task_env_64 = MultiTaskEnv(64)
-    multi_task_env_100 = MultiTaskEnv(100)
-    multi_task_env_512 = MultiTaskEnv(512)
-    print(multi_task_env_0.tasks)
-
-    """ SLEPPO SETUP """
-    sle = SLE_MTPPO(multi_task_env_0, config)
-
-    """ MTPPO SETUP """
-    mtppo1 = MTPPO(multi_task_env_0, config)
-    mtppo2 = MTPPO(multi_task_env_42, config)
-    mtppo3 = MTPPO(multi_task_env_1, config)
-    mtppo4 = MTPPO(multi_task_env_64, config)
-    mtppo5 = MTPPO(multi_task_env_100, config)
-    mtppo6 = MTPPO(multi_task_env_512, config)
-    seeds_ppo = [mtppo1, mtppo2, mtppo3, mtppo4, mtppo5, mtppo6]
-
-    """ MTSAC SETUP """
-    mtsac1 = MultiTaskSAC(multi_task_env_0, config_mtsac)
-    mtsac2 = MultiTaskSAC(multi_task_env_42, config_mtsac)
-    mtsac3 = MultiTaskSAC(multi_task_env_1, config_mtsac)
-    seeds_sac = [mtsac1, mtsac2, mtsac3]
-    ''''''
     
 
+    """ ENV SETUP """
+    
+    seeds = random_seeds()
+    seeds_ppo = seeding('mtppo', [0, 1, 100, 42, 512, 64], config)
     run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
     #training(config, mtppo6)
