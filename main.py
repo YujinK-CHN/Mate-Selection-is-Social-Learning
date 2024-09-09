@@ -110,13 +110,13 @@ if __name__ == "__main__":
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.95,
-        'batch_size': 5000,
+        'batch_size': 2500,
         'max_path_length': 500,
         'min_batch': 32,
         'epoch_merging': 4,
         'epoch_finetune': 8,
-        'epoch_opt': 64,
-        'total_episodes': 30,
+        'epoch_opt': 16,
+        'total_episodes': 4000,
         'hidden_size': 128,
         'lr': 0.0005
     }
