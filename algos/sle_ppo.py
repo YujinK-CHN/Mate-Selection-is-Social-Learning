@@ -419,7 +419,7 @@ class SLE_MTPPO():
     def train_finetune_stage(self, env, policy):
 
         policy = copy.deepcopy(policy).to(self.device)
-        actor_opt = optim.Adam(chain(policy.log_std, policy.shared_layers.parameters()), lr=self.lr, eps=1e-8)
+        actor_opt = optim.Adam(policy.actor(), lr=self.lr, eps=1e-8)
         critic_opt = optim.Adam(policy.critic.parameters(), lr=self.lr, eps=1e-8)
 
         policy.train()

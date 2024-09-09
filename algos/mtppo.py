@@ -60,7 +60,7 @@ class MTPPO():
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
-        
+
         self.max_grad_norm = 0.5
         self.lr = config['lr']
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-8)
@@ -241,7 +241,7 @@ class MTPPO():
             print(f"Training episode {episode}")
             print(f"Training seed {self.seed}")
             print(f"Episodic Return: {np.mean(task_returns)}")
-            print(f"Episodic success rate: {success_tracker.overall_success_rate}")
+            print(f"Episodic success rate: {success_tracker.overall_success_rate()}")
             print(f"Actor Loss: {actor_loss.item()}")
             print(f"Critic Loss: {v_loss}")
             print("\n-------------------------------------------\n")
