@@ -13,16 +13,8 @@ class MultiTaskPolicy(nn.Module):
         self.env = env
         self.continuous = continuous
         self.device = device
-        self.log_std = nn.Parameter(torch.full((env.action_space.shape[0],), 1.0)).to(self.device)
+        self.log_std = nn.Parameter(torch.full((env.action_space.shape[0],), 1.0))
 
-        '''
-        self.embedding = nn.Sequential(
-                nn.Embedding(num_embeddings = num_tasks, embedding_dim = hidden_size),
-                nn.Tanh(),
-                nn.Linear(hidden_size, hidden_size),
-                nn.Tanh(),
-            )
-        '''
         self.shared_layers = nn.Sequential(
             self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size)),
             nn.Tanh(),
@@ -62,7 +54,7 @@ class MultiTaskPolicy(nn.Module):
             action_dist = Categorical(probs=means)
         else:
             clamped_diagonal = torch.clamp(self.log_std, min=0.5, max=1.5)
-            clamped_cov_matrix = torch.diag_embed(clamped_diagonal) + (torch.diag(self.log_std) - torch.diag_embed(self.log_std)).to(self.device)
+            clamped_cov_matrix = torch.diag_embed(clamped_diagonal) + (torch.diag(self.log_std) - torch.diag_embed(self.log_std))
             action_dist = MultivariateNormal(means, clamped_cov_matrix)
             
             #action_dist = Normal(means, self.log_std)
@@ -82,7 +74,7 @@ class MultiTaskPolicy(nn.Module):
         else:
             action_var = self.log_std.expand_as(means)
             clamped_diagonal = torch.clamp(self.log_std, min=0.5, max=1.5)
-            clamped_cov_matrix = torch.diag_embed(clamped_diagonal) + (torch.diag_embed(action_var) - torch.diag_embed(action_var)).to(self.device)
+            clamped_cov_matrix = torch.diag_embed(clamped_diagonal) + (torch.diag_embed(action_var) - torch.diag_embed(action_var))
             action_dist = MultivariateNormal(means, clamped_cov_matrix)
 
             #action_dist = Normal(means, self.log_std)
