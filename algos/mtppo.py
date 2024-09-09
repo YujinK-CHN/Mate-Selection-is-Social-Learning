@@ -60,6 +60,7 @@ class MTPPO():
             device = config['device']
         ).to(config['device'])
         self.max_grad_norm = 0.5
+        self.lr = config['lr']
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-8)
         self.actor_opt = optim.Adam(self.policy.shared_layers.parameters(), lr=config['lr'], eps=1e-8)
         self.critic_opt = optim.Adam(self.policy.critic.parameters(), lr=config['lr'], eps=1e-8)
