@@ -60,6 +60,7 @@ class MTPPO():
             continuous = config['continuous'],
             device = config['device']
         ).to(config['device'])
+        
         self.max_grad_norm = 0.5
         self.lr = config['lr']
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-8)

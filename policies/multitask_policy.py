@@ -42,7 +42,7 @@ class MultiTaskPolicy(nn.Module):
         )
 
     def _layer_init(self, layer, std=np.sqrt(2)):
-        torch.nn.init.xavier_uniform_(layer.weight, std)
+        torch.nn.init.orthogonal_(layer.weight, std)
         torch.nn.init.zeros_(layer.bias)
         return layer
 
@@ -84,7 +84,7 @@ class MultiTaskPolicy(nn.Module):
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
     def actor(self):
-        return chain(self.log_std, self.shared_layers.parameters())
+        return [self.log_std] + list(self.shared_layers.parameters())
 
     def gate_parameters(self):
         return chain(self.shared_layers[2].parameters(), self.shared_layers[5].parameters())
