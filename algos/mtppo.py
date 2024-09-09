@@ -87,7 +87,8 @@ class MTPPO():
         y = []
         x_eval = []
         y_eval = []
-        y3 = []
+        sr = []
+        tasks_sr = []
         
         # train for n number of episodes
         for episode in range(self.total_episodes): 
@@ -108,11 +109,12 @@ class MTPPO():
             index = 0
             
             task_returns = []
-            success_rate = []
+            episodic_tasks_sr = []
+            success_tracker = MultiTaskSuccessTracker(self.num_tasks)
             with torch.no_grad():
                 for i, task in enumerate(self.env.tasks): # 10
                     episodic_return = []
-                    episodic_sr = []
+                    
                     for epoch in range(int((self.batch_size / self.num_tasks) / self.max_cycles)): # 10
                         next_obs, infos = task.reset(self.seed)
                         one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
@@ -130,7 +132,7 @@ class MTPPO():
                             # execute the environment and log data
                             next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
                             success = infos.get('success', 0.0)
-                            num_success += success
+                            success_tracker.update(i, success)
                             
                             # add to episode storage
                             rb_obs[index] = obs
@@ -149,7 +151,6 @@ class MTPPO():
                             
 
                         episodic_return.append(step_return)
-                        episodic_sr.append(num_success/self.max_cycles)
 
                         # advantage
                         gae = 0
@@ -162,8 +163,8 @@ class MTPPO():
 
                         
                     task_returns.append(np.mean(episodic_return))
-                    success_rate.append(np.mean(episodic_sr))
-                                
+                    episodic_tasks_sr.append(success_tracker.task_success_rate(i))
+            tasks_sr.append(episodic_tasks_sr)                    
 
             # normalize advantaegs
             rb_returns = rb_advantages + rb_values
@@ -238,7 +239,7 @@ class MTPPO():
             print(f"Training episode {episode}")
             print(f"Training seed {self.seed}")
             print(f"Episodic Return: {np.mean(task_returns)}")
-            print(f"Episodic success rate: {np.mean(success_rate)}")
+            print(f"Episodic success rate: {success_tracker.overall_success_rate}")
             print(f"Actor Loss: {actor_loss.item()}")
             print(f"Critic Loss: {v_loss}")
             print("\n-------------------------------------------\n")
@@ -255,8 +256,8 @@ class MTPPO():
 
             x.append(episode)
             y.append(np.mean(task_returns))
+            sr.append(success_tracker.overall_success_rate)
             
-            #y3.append(success_tracker.overall_success_rate())
             if episode % 10 == 0:
                 
                 plt.plot(x, y)
@@ -268,7 +269,7 @@ class MTPPO():
 
         plt.show(block=False)
         
-        return x, y, x_eval, y_eval       
+        return x, y, x_eval, y_eval, sr, tasks_sr       
         
 
     def eval(self, policy):
