@@ -171,7 +171,7 @@ class MTPPO():
             rb_index = np.arange(rb_obs.shape[0])
             for epoch in range(self.epoch_opt): # 16
                 # shuffle the indices we use to access the data
-                np.random.shuffle(rb_index)
+                # np.random.shuffle(rb_index)
                 for start in range(0, rb_obs.shape[0], self.min_batch):
                     # select the indices we want to train on
                     end = start + self.min_batch
