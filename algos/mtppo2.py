@@ -96,7 +96,7 @@ class MTPPO():
                 rb_actions = torch.zeros((self.batch_size, self.env.action_space.shape[0])).to(self.device)
             else:
                 rb_actions = torch.zeros((self.batch_size, 1)).to(self.device)
-            rb_logprobs = torch.zeros((self.batch_size, 4)).to(self.device)
+            rb_logprobs = torch.zeros((self.batch_size, 1)).to(self.device)
             rb_rewards = torch.zeros((self.batch_size, 1)).to(self.device)
             rb_advantages = torch.zeros((self.batch_size, 1)).to(self.device)
             rb_terms = torch.zeros((self.batch_size, 1)).to(self.device)
@@ -152,7 +152,7 @@ class MTPPO():
                         # advantage
                         gae = 0
                         # normalize rewards
-                        rb_rewards[(index-self.max_cycles):(index-1)] = (rb_rewards[(index-self.max_cycles):(index-1)] - rb_rewards[(index-self.max_cycles):(index-1)].mean()) / (torch.std(rb_rewards[(index-self.max_cycles):(index-1)]) + 1e-8)
+                        # rb_rewards[(index-self.max_cycles):(index-1)] = (rb_rewards[(index-self.max_cycles):(index-1)] - rb_rewards[(index-self.max_cycles):(index-1)].mean()) / (torch.std(rb_rewards[(index-self.max_cycles):(index-1)]) + 1e-8)
                         for t in range(index-2, (index-self.max_cycles)-1, -1):
                             delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
                             gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
@@ -184,12 +184,12 @@ class MTPPO():
                         task_id=i
                     )
                     
-                    logratio = newlogprob - rb_logprobs[batch_index, :]
+                    logratio = newlogprob.unsqueeze(-1) - rb_logprobs[batch_index, :]
                     ratio = logratio.exp()
 
                     # normalize advantaegs
                     advantages = rb_advantages[batch_index, :]
-                    # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+                    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
                     # Policy loss
                     pg_loss1 = rb_advantages[batch_index, :] * ratio

@@ -6,7 +6,7 @@ from pipline.train import training
 from algos.ppo import PPO
 from algos.ippo import IPPO
 from algos.mappo import MAPPO
-from algos.mtppo2 import MTPPO
+from algos.mtppo import MTPPO
 from algos.sle_ppo import SLE_MTPPO
 from algos.mtsac import MultiTaskSAC
 
@@ -96,8 +96,8 @@ if __name__ == "__main__":
         'min_batch': 32,
         'epoch_merging': 4,
         'epoch_finetune': 8,
-        'epoch_opt': 256,
-        'total_episodes': 50,
+        'epoch_opt': 64,
+        'total_episodes': 30,
         'hidden_size': 128,
         'lr': 0.0005
     }
@@ -155,8 +155,8 @@ if __name__ == "__main__":
     ''''''
     
 
-    #run_seeds(seeds_ppo)
+    run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
-    training(config, mtppo6)
+    #training(config, mtppo6)
     #training(config, sle)
     

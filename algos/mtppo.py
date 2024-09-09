@@ -90,25 +90,28 @@ class MTPPO():
         # train for n number of episodes
         for episode in range(self.total_episodes): 
             self.policy.train()
-            # clear memory
-            rb_obs = torch.zeros((self.batch_size, self.obs_shape + self.num_tasks)).to(self.device)
-            if self.continuous == True:
-                rb_actions = torch.zeros((self.batch_size, self.env.action_space.shape[0])).to(self.device)
-            else:
-                rb_actions = torch.zeros((self.batch_size, 1)).to(self.device)
-            rb_logprobs = torch.zeros((self.batch_size, 4)).to(self.device)
-            rb_rewards = torch.zeros((self.batch_size, 1)).to(self.device)
-            rb_advantages = torch.zeros((self.batch_size, 1)).to(self.device)
-            rb_terms = torch.zeros((self.batch_size, 1)).to(self.device)
-            rb_values = torch.zeros((self.batch_size, 1)).to(self.device)
-
-            # sampling
+            
             
             
             epoch_task_returns = []
             epoch_success_rate = []
-            rb_index = np.arange(rb_obs.shape[0])
+            
             for epoch in range(self.epoch_opt): # 16
+
+                # clear memory
+                rb_obs = torch.zeros((self.batch_size, self.obs_shape + self.num_tasks)).to(self.device)
+                if self.continuous == True:
+                    rb_actions = torch.zeros((self.batch_size, self.env.action_space.shape[0])).to(self.device)
+                else:
+                    rb_actions = torch.zeros((self.batch_size, 1)).to(self.device)
+                rb_logprobs = torch.zeros((self.batch_size, 1)).to(self.device)
+                rb_rewards = torch.zeros((self.batch_size, 1)).to(self.device)
+                rb_advantages = torch.zeros((self.batch_size, 1)).to(self.device)
+                rb_terms = torch.zeros((self.batch_size, 1)).to(self.device)
+                rb_values = torch.zeros((self.batch_size, 1)).to(self.device)
+
+                # sampling
+
                 index = 0
                 task_returns = []
                 success_rate = []
@@ -170,9 +173,10 @@ class MTPPO():
                 epoch_success_rate.append(np.mean(success_rate))
 
                 # Optimizing the policy and value network
-         
+                print(rb_actions)
             
                 # shuffle the indices we use to access the data
+                rb_index = np.arange(rb_obs.shape[0])
                 np.random.shuffle(rb_index)
                 for start in range(0, rb_obs.shape[0], self.min_batch):
                     # select the indices we want to train on
@@ -189,12 +193,12 @@ class MTPPO():
                         task_id=i
                     )
                     
-                    logratio = newlogprob - rb_logprobs[batch_index, :]
+                    logratio = newlogprob.unsqueeze(-1) - rb_logprobs[batch_index, :]
                     ratio = logratio.exp()
 
                     # normalize advantaegs
                     advantages = rb_advantages[batch_index, :]
-                    # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+                    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
                     # Policy loss
                     pg_loss1 = rb_advantages[batch_index, :] * ratio
