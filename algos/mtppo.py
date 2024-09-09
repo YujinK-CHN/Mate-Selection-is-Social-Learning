@@ -63,7 +63,7 @@ class MTPPO():
         self.max_grad_norm = 0.5
         self.lr = config['lr']
         self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-8)
-        self.actor_opt = optim.Adam(chain(self.policy.log_std, self.policy.shared_layers.parameters()), lr=config['lr'], eps=1e-8)
+        self.actor_opt = optim.Adam(self.policy.actor(), lr=config['lr'], eps=1e-8)
         self.critic_opt = optim.Adam(self.policy.critic.parameters(), lr=config['lr'], eps=1e-8)
 
         self.max_cycles = config['max_path_length']

@@ -90,6 +90,9 @@ class MultiTaskPolicy(nn.Module):
         values = self.critic(x)
         # print(self.shared_layers[2].weight.grad)
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
+    
+    def actor(self):
+        return chain(self.log_std, self.shared_layers.parameters())
 
     def gate_parameters(self):
         return chain(self.shared_layers[2].parameters(), self.shared_layers[5].parameters())
@@ -99,6 +102,7 @@ class MultiTaskPolicy(nn.Module):
     
     def l0_loss(self):
         return self.shared_layers[2].l0_loss() + self.shared_layers[5].l0_loss()
+        
 
     
 ##########################################
