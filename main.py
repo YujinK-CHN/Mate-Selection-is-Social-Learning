@@ -28,6 +28,7 @@ def create_metaworld(seed):
     return training_envs
 
 def random_seeds(min=0, max=1024, num_seeds = 6):
+     random.seed(0)
      seeds = [random.randint(min, max) for _ in range(num_seeds)]
      return seeds
 

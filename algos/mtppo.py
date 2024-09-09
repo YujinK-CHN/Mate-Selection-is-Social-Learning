@@ -165,22 +165,22 @@ class MTPPO():
                                 
 
             # normalize advantaegs
-            rb_advantages = (rb_advantages - rb_advantages.mean()) / (rb_advantages.std() + 1e-8)
+            rb_returns = rb_advantages + rb_values
 
             # Optimizing the policy and value network
          
             rb_index = np.arange(rb_obs.shape[0])
             for epoch in range(self.epoch_opt): # 16
                 # shuffle the indices we use to access the data
-                # np.random.shuffle(rb_index)
-                '''
+                np.random.shuffle(rb_index)
+                ''''''
                 # learning Rate annealing
                 frac = (episode - 1.0) / self.total_episodes
                 new_lr = self.lr * (1.0 - frac)
                 new_lr = max(new_lr, 0.0)
                 self.actor_opt.param_groups[0]["lr"] = new_lr
                 self.critic_opt.param_groups[0]["lr"] = new_lr
-                '''
+                
                 for start in range(0, rb_obs.shape[0], self.min_batch):
                     # select the indices we want to train on
                     end = start + self.min_batch
@@ -200,7 +200,8 @@ class MTPPO():
                     ratio = logratio.exp()
 
                     
-                    advantages = rb_advantages[batch_index, :]      
+                    advantages = rb_advantages[batch_index, :]
+                    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)    
 
                     # Policy loss
                     pg_loss1 = advantages * ratio
@@ -212,7 +213,7 @@ class MTPPO():
 
                     actor_loss = -pg_loss.mean()
 
-                    v_loss = nn.MSELoss()(values, advantages)
+                    v_loss = nn.MSELoss()(values, rb_returns[batch_index, :])
 
 
                     '''
