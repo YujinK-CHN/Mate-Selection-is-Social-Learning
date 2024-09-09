@@ -5,6 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import multiprocess as mp
 import copy
+import math
+from itertools import chain
 
 from processing.batching import batchify, batchify_obs, unbatchify
 from processing.l0module import L0GateLayer1d, concat_first_linear, concat_middle_linear, concat_last_linear,  \
@@ -259,11 +261,15 @@ class SLE_MTPPO():
     def train(self, env, policy):
 
         policy = self.train_merging_stage(env, policy)
-        important_indices = policy.shared_layers[2].important_indices()
+        important_indices1 = policy.shared_layers[2].important_indices()
+        important_indices2 = policy.shared_layers[5].important_indices()
         policy.shared_layers = nn.Sequential(
-            compress_first_linear(policy.shared_layers[0], important_indices),
+            compress_first_linear(policy.shared_layers[0], important_indices1),
             nn.Tanh(),
-            compress_final_linear(policy.shared_layers[-1], important_indices),
+            compress_middle_linear(policy.shared_layers[3], important_indices1, important_indices2),
+            nn.Tanh(),
+            compress_final_linear(policy.shared_layers[-2], important_indices2),
+            nn.Tanh(),
         )
 
         policy, mean_episodic_return, episodic_success_rate, loss = self.train_finetune_stage(env, policy)
@@ -283,7 +289,7 @@ class SLE_MTPPO():
         # clear memory
         rb_obs = torch.zeros((self.batch_size, self.obs_shape + self.num_tasks)).to(self.device)
         if self.continuous == True:
-            rb_actions = torch.zeros((self.batch_size, self.env.action_space.shape[0])).to(self.device)
+            rb_actions = torch.zeros((self.batch_size, env.action_space.shape[0])).to(self.device)
         else:
             rb_actions = torch.zeros((self.batch_size, 1)).to(self.device)
         rb_logprobs = torch.zeros((self.batch_size, 1)).to(self.device)
@@ -296,8 +302,6 @@ class SLE_MTPPO():
         # sampling
         index = 0
             
-        task_returns = []
-        success_tracker = MultiTaskSuccessTracker(self.num_tasks)
         with torch.no_grad():
             for i, task in enumerate(env.tasks): # 10
                 episodic_return = []
@@ -316,8 +320,6 @@ class SLE_MTPPO():
 
                         # execute the environment and log data
                         next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
-                        success = infos.get('success', 0.0)
-                        success_tracker.update(i, success)
                             
                         # add to episode storage
                         rb_obs[index] = obs
@@ -335,7 +337,6 @@ class SLE_MTPPO():
                             break
                             
 
-                    episodic_return.append(step_return)
 
                     # advantage
                     gae = 0
@@ -346,8 +347,7 @@ class SLE_MTPPO():
                         gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
                         rb_advantages[t] = gae
 
-                        
-                task_returns.append(np.mean(episodic_return))                   
+                                       
 
         # normalize advantaegs
         rb_returns = rb_advantages + rb_values
@@ -393,7 +393,7 @@ class SLE_MTPPO():
 
                 v_loss = nn.MSELoss()(values, rb_returns[batch_index, :])
 
-                l0_loss = alpha * policy.shared_layers[2].l0_loss()
+                l0_loss = alpha * policy.l0_loss()
                 # print(l0_loss)
 
                 actor_loss = actor_loss + l0_loss
@@ -411,20 +411,22 @@ class SLE_MTPPO():
                 v_loss.backward()
                 nn.utils.clip_grad_norm_(policy.critic.parameters(), self.max_grad_norm)
                 critic_opt.step()
+
+            alpha += 0.05 * math.sqrt(alpha)
         
         return policy
 
     def train_finetune_stage(self, env, policy):
 
         policy = copy.deepcopy(policy).to(self.device)
-        actor_opt = optim.Adam(policy.shared_layers.parameters(), lr=self.lr, eps=1e-8)
+        actor_opt = optim.Adam(chain(policy.log_std, policy.shared_layers.parameters()), lr=self.lr, eps=1e-8)
         critic_opt = optim.Adam(policy.critic.parameters(), lr=self.lr, eps=1e-8)
 
         policy.train()
         # clear memory
         rb_obs = torch.zeros((self.batch_size, self.obs_shape + self.num_tasks)).to(self.device)
         if self.continuous == True:
-            rb_actions = torch.zeros((self.batch_size, self.env.action_space.shape[0])).to(self.device)
+            rb_actions = torch.zeros((self.batch_size, env.action_space.shape[0])).to(self.device)
         else:
             rb_actions = torch.zeros((self.batch_size, 1)).to(self.device)
         rb_logprobs = torch.zeros((self.batch_size, 1)).to(self.device)

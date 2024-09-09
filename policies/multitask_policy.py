@@ -92,10 +92,13 @@ class MultiTaskPolicy(nn.Module):
         return actions, action_dist.log_prob(actions), action_dist.entropy(), values
 
     def gate_parameters(self):
-        return self.shared_layers[2].parameters()
+        return chain(self.shared_layers[2].parameters(), self.shared_layers[5].parameters())
 
     def non_gate_parameters(self):
-        return chain(self.shared_layers[0].parameters(), self.shared_layers[-1].parameters())
+        return chain(self.log_std, self.shared_layers[0].parameters(), self.shared_layers[3].parameters(), self.shared_layers[-2].parameters())
+    
+    def l0_loss(self):
+        return self.shared_layers[2].l0_loss() + self.shared_layers[5].l0_loss()
 
     
 ##########################################
