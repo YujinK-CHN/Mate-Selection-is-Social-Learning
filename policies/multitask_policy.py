@@ -42,7 +42,7 @@ class MultiTaskPolicy(nn.Module):
         )
 
     def _layer_init(self, layer, std=np.sqrt(2)):
-        torch.nn.init.orthogonal_(layer.weight, std)
+        torch.nn.init.orthogonal_(layer.weight, gain=nn.init.calculate_gain('tanh'))
         torch.nn.init.zeros_(layer.bias)
         return layer
 
