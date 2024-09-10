@@ -16,11 +16,11 @@ class MultiTaskPolicy(nn.Module):
         self.log_std = nn.Parameter(torch.full((env.action_space.shape[0],), 1.0))
 
         self.shared_layers = nn.Sequential(
-            self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size)),
+            self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size), 'tanh'),
             nn.Tanh(),
-            self._layer_init(nn.Linear(hidden_size, hidden_size)),
+            self._layer_init(nn.Linear(hidden_size, hidden_size), 'tanh'),
             nn.Tanh(),
-            self._layer_init(nn.Linear(hidden_size, env.action_space.shape[0])),
+            self._layer_init(nn.Linear(hidden_size, env.action_space.shape[0]), 'tanh'),
             nn.Tanh(),
         )
         '''
@@ -33,16 +33,16 @@ class MultiTaskPolicy(nn.Module):
         ])
         '''
         self.critic = nn.Sequential(
-            self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size)),
-            nn.Tanh(),
-            self._layer_init(nn.Linear(hidden_size, hidden_size)),
-            nn.Tanh(),
-            self._layer_init(nn.Linear(hidden_size, 1)),
-            nn.Tanh(),
+            self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size), 'relu'),
+            nn.ReLU(),
+            self._layer_init(nn.Linear(hidden_size, hidden_size), 'relu'),
+            nn.ReLU(),
+            self._layer_init(nn.Linear(hidden_size, 1), 'relu'),
+            nn.ReLU(),
         )
 
-    def _layer_init(self, layer, std=np.sqrt(2)):
-        torch.nn.init.orthogonal_(layer.weight, gain=nn.init.calculate_gain('tanh'))
+    def _layer_init(self, layer, non_linearity):
+        torch.nn.init.orthogonal_(layer.weight, gain=nn.init.calculate_gain(non_linearity))
         torch.nn.init.zeros_(layer.bias)
         return layer
 
