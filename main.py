@@ -78,7 +78,7 @@ def run_seeds(seeds):
 
 class MultiTaskEnv():
     def __init__(self, seed):
-        self.tasks = [create_metaworld(seed)[i] for i in [5]] # [0, 5, 8]
+        self.tasks = [create_metaworld(seed)[i] for i in [8]] # [0, 5, 8]
         self.current_task = None
         self.observation_space = self.tasks[0].observation_space
         self.action_space = self.tasks[0].action_space
