@@ -78,7 +78,7 @@ def run_seeds(seeds):
 
 class MultiTaskEnv():
     def __init__(self, seed):
-        self.tasks = [create_metaworld(seed)[i] for i in [0]] # [0, 5, 8]
+        self.tasks = [create_metaworld(seed)[i] for i in [5]] # [0, 5, 8]
         self.current_task = None
         self.observation_space = self.tasks[0].observation_space
         self.action_space = self.tasks[0].action_space
@@ -116,7 +116,7 @@ if __name__ == "__main__":
         'epoch_merging': 4,
         'epoch_finetune': 8,
         'epoch_opt': 16,
-        'total_episodes': 1000,
+        'total_episodes': 300,
         'hidden_size': 128,
         'lr': 0.0005
     }

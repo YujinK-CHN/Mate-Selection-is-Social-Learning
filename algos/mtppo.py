@@ -177,13 +177,14 @@ class MTPPO():
             for epoch in range(self.epoch_opt): # 16
                 # shuffle the indices we use to access the data
                 np.random.shuffle(rb_index)
-                ''''''
+                '''
                 # learning Rate annealing
                 frac = (episode - 1.0) / self.total_episodes
                 new_lr = self.lr * (1.0 - frac)
                 new_lr = max(new_lr, 0.0)
                 self.actor_opt.param_groups[0]["lr"] = new_lr
                 self.critic_opt.param_groups[0]["lr"] = new_lr
+                '''
                 
                 for start in range(0, rb_obs.shape[0], self.min_batch):
                     # select the indices we want to train on
