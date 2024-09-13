@@ -121,7 +121,7 @@ class MTPPO():
                         next_obs, infos = task.reset(self.seed)
                         one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
                         step_return = 0
-                        num_success = 0
+                        if_success = False
                         for step in range(0, self.max_cycles): # 500
                             # rollover the observation 
                             # obs = batchify_obs(next_obs, self.device)
@@ -134,8 +134,10 @@ class MTPPO():
                             # execute the environment and log data
                             next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
                             success = infos.get('success', 0.0)
-                            print(step, success)
-                            success_tracker.update(i, success)
+                            if success != 0.0:
+                                print("!!!!!!!!!!", epoch, step, success)
+                                if_success = True
+                            
                             
                             # add to episode storage
                             rb_obs[index] = obs
@@ -154,6 +156,7 @@ class MTPPO():
                             
 
                         episodic_return.append(step_return)
+                        success_tracker.update(i, if_success)
 
                         # advantage
                         gae = 0
