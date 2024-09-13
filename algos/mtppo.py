@@ -134,6 +134,7 @@ class MTPPO():
                             # execute the environment and log data
                             next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
                             success = infos.get('success', 0.0)
+                            print(step, success)
                             success_tracker.update(i, success)
                             
                             # add to episode storage
