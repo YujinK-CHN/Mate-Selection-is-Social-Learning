@@ -16,12 +16,11 @@ class MultiTaskPolicy(nn.Module):
         self.log_std = nn.Parameter(torch.full((env.action_space.shape[0],), 1.0))
 
         self.shared_layers = nn.Sequential(
-            self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size), 'tanh'),
+            self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size)),
             nn.Tanh(),
-            self._layer_init(nn.Linear(hidden_size, hidden_size), 'tanh'),
+            self._layer_init(nn.Linear(hidden_size, hidden_size)),
             nn.Tanh(),
-            self._layer_init(nn.Linear(hidden_size, env.action_space.shape[0]), 'tanh'),
-            nn.Tanh(),
+            self._layer_init(nn.Linear(hidden_size, env.action_space.shape[0]), std=0.01),
         )
         '''
         self.task_heads = nn.ModuleList([
@@ -33,55 +32,34 @@ class MultiTaskPolicy(nn.Module):
         ])
         '''
         self.critic = nn.Sequential(
-            self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size), 'relu'),
-            nn.ReLU(),
-            self._layer_init(nn.Linear(hidden_size, hidden_size), 'relu'),
-            nn.ReLU(),
-            self._layer_init(nn.Linear(hidden_size, 1), 'relu'),
-            nn.ReLU(),
+            self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size)),
+            nn.Tanh(),
+            self._layer_init(nn.Linear(hidden_size, hidden_size)),
+            nn.Tanh(),
+            self._layer_init(nn.Linear(hidden_size, 1), std=1.0),
         )
 
-    def _layer_init(self, layer, non_linearity):
-        torch.nn.init.orthogonal_(layer.weight, gain=nn.init.calculate_gain(non_linearity))
-        torch.nn.init.zeros_(layer.bias)
+    def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
+        torch.nn.init.orthogonal_(layer.weight, std)
+        torch.nn.init.constant_(layer.bias, bias_const)
         return layer
 
-    def act(self, x, task_id):
-        means = self.shared_layers(x)
-        # action_probs = self.task_heads[task_id](latent)
+    def get_value(self, x):
+        return self.critic(x)
 
-        if self.continuous == False:
-            action_dist = Categorical(probs=means)
-        else:
-            clamped_diagonal = torch.clamp(self.log_std, min=0.5, max=1.5)
-            clamped_cov_matrix = torch.diag_embed(clamped_diagonal) + (torch.diag(self.log_std) - torch.diag_embed(self.log_std))
-            action_dist = MultivariateNormal(means, clamped_cov_matrix)
-            
-            #action_dist = Normal(means, self.log_std)
-        
-        actions = torch.tanh(action_dist.sample())
+    def get_action_and_value(self, x, action=None):
+        action_mean = self.shared_layers(x)
+        action_logstd = self.log_std.expand_as(action_mean)
+        action_std = torch.exp(action_logstd)
+        probs = Normal(action_mean, action_std)
+        #clamped_diagonal = torch.clamp(self.log_std, min=0.5, max=1.5)
+        #clamped_cov_matrix = torch.diag_embed(clamped_diagonal) + (torch.diag_embed(action_var) - torch.diag_embed(action_var))
+        #probs = MultivariateNormal(means, clamped_cov_matrix)
+        if action is None:
+            action = probs.sample()
 
-        values = self.critic(x)
-
-        return actions, action_dist.log_prob(actions), action_dist.entropy(), values
+        return action, probs.log_prob(action).sum(-1), probs.entropy().sum(-1), self.critic(x)
     
-    def evaluate(self, x, actions, task_id):
-        means = self.shared_layers(x)
-        #action_probs = self.task_heads[task_id](latent)
-
-        if self.continuous == False:
-            action_dist = Categorical(probs=means)
-        else:
-            action_var = self.log_std.expand_as(means)
-            clamped_diagonal = torch.clamp(self.log_std, min=0.5, max=1.5)
-            clamped_cov_matrix = torch.diag_embed(clamped_diagonal) + (torch.diag_embed(action_var) - torch.diag_embed(action_var))
-            action_dist = MultivariateNormal(means, clamped_cov_matrix)
-
-            #action_dist = Normal(means, self.log_std)
-
-        values = self.critic(x)
-        # print(self.shared_layers[2].weight.grad)
-        return actions, action_dist.log_prob(actions), action_dist.entropy(), values
     
     def actor(self):
         return [self.log_std] + list(self.shared_layers.parameters())
