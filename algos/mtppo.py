@@ -134,8 +134,8 @@ class MTPPO():
 
                         next_obs, infos = task.reset(self.seed)
                         if self.normalize_states:
-                            next_obs = norm_obs.normalize(next_obs, i)
-                            next_obs = torch.clip(norm_obs, -10, 10)
+                            next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
+                            next_obs = torch.clip(next_obs, -10, 10)
 
                         one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
                         step_return = 0
@@ -147,22 +147,29 @@ class MTPPO():
                             obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                             # get actions from skills
-                            actions, logprobs, entropy, values = self.policy.get_action_and_value(obs)
+                            action, logprob, entropy, value = self.policy.get_action_and_value(obs)
+                            # add to episode storage
+                            rb_actions[index] = action
+                            rb_logprobs[index] = logprob
+                            rb_values[index] = value.flatten()
 
                             # execute the environment and log data
-                            next_obs, reward, term, trunc, info = task.step(actions.cpu().numpy())
+                            action = torch.clip(action, -1, 1)  # action clip
+                            next_obs, reward, term, trunc, info = task.step(action.cpu().numpy())
                             step_return += reward
+                            
 
                             success = info.get('success', 0.0)
                             if success != 0.0:
                                 print("!!!!!!!!!!", epoch, step, success)
                                 if_success = True
+                                print(term)
                                 term = 1.0
                                 next_obs, infos = task.reset(self.seed)
 
                             if self.normalize_states:
-                                next_obs = norm_obs.normalize(next_obs, i)
-                                next_obs = torch.clip(norm_obs, -10, 10)
+                                next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
+                                next_obs = torch.clip(next_obs, -10, 10)
                                 
                             if self.normalize_rewards:
                                 reward = norm_rew.normalize(reward, term, i)
@@ -175,14 +182,11 @@ class MTPPO():
                             rb_obs[index] = obs
                             rb_rewards[index] = reward
                             rb_terms[index] = term
-                            rb_actions[index] = actions
-                            rb_logprobs[index] = logprobs
-                            rb_values[index] = values.flatten()
                             
-
+                            
                             index += 1
                             
-                        print(rb_actions)
+
                         episodic_return.append(step_return)
                         success_tracker.update(i, if_success)
 

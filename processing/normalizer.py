@@ -1,5 +1,4 @@
 """Set of wrappers for normalizing actions and observations."""
-import numpy as np
 import torch
 
 
@@ -14,8 +13,10 @@ class RunningMeanStd:
 
     def update(self, x, task_id):
         """Updates the mean, var and count from a batch of samples."""
+        
         batch_mean = torch.mean(x, dim=0)
-        batch_var = torch.var(x, dim=0)
+        batch_var = torch.var(x, dim=0, unbiased=False)
+        
         batch_count = x.shape[0]
         self.update_from_moments(batch_mean, batch_var, batch_count, task_id)
 
@@ -34,7 +35,7 @@ def update_mean_var_count_from_moments(mean, var, count, batch_mean, batch_var, 
     new_mean = mean + delta * batch_count / tot_count
     m_a = var * count
     m_b = batch_var * batch_count
-    M2 = m_a + m_b + np.square(delta) * count * batch_count / tot_count
+    M2 = m_a + m_b + torch.square(delta) * count * batch_count / tot_count
     new_var = M2 / tot_count
     new_count = tot_count
 
@@ -56,7 +57,7 @@ class NormalizeObservation():
     def normalize(self, obs, task_id):
         """Normalises the observation using the running mean and variance of the observations."""
         self.obs_rms.update(obs, task_id)
-        return (obs - self.obs_rms.mean[task_id]) / np.sqrt(self.obs_rms.var[task_id] + self.epsilon)
+        return (obs - self.obs_rms.mean[task_id]) / torch.sqrt(self.obs_rms.var[task_id] + self.epsilon)
 
 
 class NormalizeReward():
@@ -72,7 +73,7 @@ class NormalizeReward():
     def __init__(self, num_tasks, gamma = 0.99, epsilon = 1e-8):
 
         self.return_rms = RunningMeanStd(num_tasks)
-        self.returns = np.zeros(num_tasks)
+        self.returns = torch.zeros(num_tasks)
         self.gamma = gamma
         self.epsilon = epsilon
 
@@ -80,4 +81,4 @@ class NormalizeReward():
         """Normalizes the rewards with the running mean rewards and their variance."""
         self.returns = self.returns * self.gamma * (1 - term) + rews
         self.return_rms.update(self.returns, task_id)
-        return rews / np.sqrt(self.return_rms.var[task_id] + self.epsilon)
+        return rews / torch.sqrt(self.return_rms.var[task_id] + self.epsilon)
