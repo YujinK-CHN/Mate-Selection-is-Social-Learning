@@ -22,15 +22,7 @@ class MultiTaskPolicy(nn.Module):
             nn.Tanh(),
             self._layer_init(nn.Linear(hidden_size, env.action_space.shape[0]), std=0.01),
         )
-        '''
-        self.task_heads = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(128, env.tasks[i].action_space.shape[0]),
-                nn.Tanh()
-            ) 
-            for i in range(num_tasks)
-        ])
-        '''
+        
         self.critic = nn.Sequential(
             self._layer_init(nn.Linear(env.observation_space.shape[0]+num_tasks, hidden_size)),
             nn.Tanh(),
