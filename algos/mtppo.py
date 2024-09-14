@@ -359,7 +359,6 @@ class MTPPO():
                         if success != 0.0:
                             print("!!!!!!!!!!", epoch, step, success)
                             success_tracker_eval.success(i)
-                            term = 1.0
                             next_obs, infos = task.reset(self.seed)
                             success_tracker_eval.count(i)
 
