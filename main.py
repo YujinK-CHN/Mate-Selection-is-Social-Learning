@@ -149,8 +149,8 @@ if __name__ == "__main__":
     
     seeds = random_seeds()
     seeds_ppo = seeding('mtppo', seeds, config)
-    #run_seeds(seeds_ppo)
+    run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
-    training(config, seeds_ppo[0])
+    #training(config, seeds_ppo[0])
     #training(config, sle)
     

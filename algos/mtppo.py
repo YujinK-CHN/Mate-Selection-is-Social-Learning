@@ -295,7 +295,7 @@ class MTPPO():
             print(f"Clip Fraction: {np.mean(clip_fracs)}")
             print(f"Explained Variance: {explained_var.item()}")
             print("\n-------------------------------------------\n")
-            if episode % 10 == 0:
+            if episode == 1 or episode % 10 == 0:
                 eval_return, mean_success_rate = self.eval(self.policy, norm_obs)
                 x_eval.append(episode)
                 y_eval.append(np.mean(eval_return))
