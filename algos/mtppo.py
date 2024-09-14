@@ -141,6 +141,7 @@ class MTPPO():
                             next_obs = torch.clip(next_obs, -10, 10)
 
                         one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
+                        
                         step_return = 0
                         for step in range(0, self.max_cycles): # 500
                             # rollover the observation 

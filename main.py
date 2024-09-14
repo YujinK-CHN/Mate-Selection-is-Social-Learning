@@ -115,7 +115,7 @@ if __name__ == "__main__":
         'min_batch': 32,
         'epoch_merging': 4,
         'epoch_finetune': 8,
-        'epoch_opt': 16,
+        'epoch_opt': 256,
         'total_episodes': 200,
         'hidden_size': 128,
         'lr': 0.0005
