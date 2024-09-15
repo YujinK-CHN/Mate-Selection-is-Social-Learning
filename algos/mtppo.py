@@ -311,7 +311,7 @@ class MTPPO():
             
             if episode % 10 == 0:
                 plt.plot(x, sr)
-                plt.plot(x_eval, sr)
+                #plt.plot(x_eval, sr_eval)
                 #plt.plot(x, y)
                 #plt.plot(x_eval, y_eval)
                 plt.title(f"Episode returns (train and eval) for seed {self.seed}")
