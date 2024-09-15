@@ -65,9 +65,9 @@ class MTPPO():
 
         self.max_grad_norm = 0.5
         self.lr = config['lr']
-        self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-8)
-        self.actor_opt = optim.Adam(self.policy.actor(), lr=config['lr'], eps=1e-8)
-        self.critic_opt = optim.Adam(self.policy.critic.parameters(), lr=config['lr'], eps=1e-8)
+        self.opt = optim.Adam(self.policy.parameters(), lr=config['lr'], eps=1e-5)
+        self.actor_opt = optim.Adam(self.policy.actor(), lr=config['lr'], eps=1e-5)
+        self.critic_opt = optim.Adam(self.policy.critic.parameters(), lr=config['lr'], eps=1e-5)
 
         self.max_cycles = config['max_path_length']
         self.pop_size = config['pop_size']
@@ -114,8 +114,7 @@ class MTPPO():
             frac = 1.0 - (episode - 1.0) / self.total_episodes
             new_lr = self.lr * (1.0 - frac)
             new_lr = max(new_lr, 0.0)
-            self.actor_opt.param_groups[0]["lr"] = new_lr
-            self.critic_opt.param_groups[0]["lr"] = new_lr
+            self.opt.param_groups[0]["lr"] = new_lr
             
             self.policy.train()
             
@@ -157,7 +156,7 @@ class MTPPO():
                             rb_values[index] = value.flatten()
 
                             # execute the environment and log data
-                            action = torch.clip(action, -1, 1)  # action clip
+                            action = torch.clip(action, -1.0, 1.0)  # action clip
                             next_obs, reward, term, trunc, info = task.step(action.cpu().numpy())
                             step_return += reward
                             
