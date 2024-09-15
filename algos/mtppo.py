@@ -90,6 +90,7 @@ class MTPPO():
         x_eval = []
         y_eval = []
         sr = []
+        sr_eval = []
         tasks_sr = []
 
         # clear memory
@@ -296,6 +297,7 @@ class MTPPO():
                 eval_return, mean_success_rate = self.eval(self.policy, norm_obs)
                 x_eval.append(episode)
                 y_eval.append(np.mean(eval_return))
+                sr_eval.append(mean_success_rate)
                 print(f"Evaluating episode {episode}")
                 print(f"Evaluating seed {self.seed}")
                 print(f"Evaluation Return: {eval_return}")
@@ -305,20 +307,21 @@ class MTPPO():
 
             x.append(episode)
             y.append(np.mean(task_returns))
-            sr.append(success_tracker.overall_success_rate)
+            sr.append(success_tracker.overall_success_rate())
             
             if episode % 10 == 0:
                 plt.plot(x, sr)
+                plt.plot(x_eval, sr)
                 #plt.plot(x, y)
                 #plt.plot(x_eval, y_eval)
                 plt.title(f"Episode returns (train and eval) for seed {self.seed}")
                 plt.xlabel("Episodes")
-                plt.ylabel("Mean rewards")
+                plt.ylabel("Success Rate")
                 plt.pause(0.05)
 
         plt.show(block=False)
         
-        return x, y, x_eval, y_eval, sr, tasks_sr       
+        return x, y, x_eval, y_eval, sr, sr_eval, tasks_sr       
         
 
     def eval(self, policy, norm_obs):

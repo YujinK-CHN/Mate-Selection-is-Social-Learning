@@ -4,7 +4,7 @@ from datetime import date
 def training(config, algo):
     
     if algo.name == 'mtppo':
-        x, y, x_eval, y_eval, sr, tasks_sr = algo.train()
+        x, y, x_eval, y_eval, sr, sr_eval, tasks_sr = algo.train()
 
         # logging
         path_to_exp = f"./logs/{algo.name}_{algo.num_tasks}_{config['batch_size']}_{config['epoch_opt']}_{config['total_episodes']}_{date.today()}"
@@ -14,8 +14,9 @@ def training(config, algo):
         np.save(f"{path_to_exp}/seed{algo.seed}/train_returns_seed{algo.seed}.npy", np.array(y))
         np.save(f"{path_to_exp}/seed{algo.seed}/eval_returns_seed{algo.seed}.npy", np.array(y_eval))
         np.save(f"{path_to_exp}/seed{algo.seed}/sr_seed{algo.seed}.npy", np.array(sr))
+        np.save(f"{path_to_exp}/seed{algo.seed}/sr_eval_seed{algo.seed}.npy", np.array(sr_eval))
         np.save(f"{path_to_exp}/seed{algo.seed}/tasks_sr_seed{algo.seed}.npy", np.array(tasks_sr))
-        return x, y, x_eval, y_eval
+        return x, y, x_eval, y_eval, sr, sr_eval
 
     if algo.name == 'sle-mtppo':
         x, y, sr, y_pop, fitness_pop, sr_pop, gen_mates = algo.evolve()

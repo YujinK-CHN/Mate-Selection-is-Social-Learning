@@ -57,11 +57,15 @@ def run_seeds(seeds):
         seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
         seeds_episodic_x_eval = [res[2] for res in results]  # receive from multi-process
         seeds_episodic_return_eval = [res[3] for res in results]  # receive from multi-process
+        seeds_episodic_sr = [res[4] for res in results]  # receive from multi-process
+        seeds_episodic_sr_eval = [res[5] for res in results]  # receive from multi-process
 
         x = seeds_episodic_x[0]
         y = np.mean(np.asarray(seeds_episodic_return), axis=0)
         x_eval = seeds_episodic_x_eval[0]
         y_eval = np.mean(np.asarray(seeds_episodic_return_eval), axis=0)
+        sr = np.mean(np.asarray(seeds_episodic_sr), axis=0)
+        sr_eval = np.mean(np.asarray(seeds_episodic_sr_eval), axis=0)
 
         plt.figure()
         plt.plot(x, y)
@@ -74,6 +78,18 @@ def run_seeds(seeds):
         plt.title("Seeds mean evaluating return for MT3 (Metaworld num_tasks=3)")
         plt.xlabel("episodes")
         plt.ylabel("mean rewards")
+
+        plt.figure()
+        plt.plot(x, sr)
+        plt.title("Seeds mean evaluating return for MT3 (Metaworld num_tasks=3)")
+        plt.xlabel("episodes")
+        plt.ylabel("sr")
+
+        plt.figure()
+        plt.plot(x_eval, sr_eval)
+        plt.title("Seeds mean evaluating return for MT3 (Metaworld num_tasks=3)")
+        plt.xlabel("episodes")
+        plt.ylabel("sr_eval")
         plt.show()
 
 class MultiTaskEnv():
