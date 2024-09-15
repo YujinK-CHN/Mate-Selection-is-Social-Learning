@@ -15,13 +15,11 @@ class MultiTaskSuccessTracker:
         self.success_counts = [0] * num_tasks
         self.total_counts = [0] * num_tasks
 
-    def count(self, task_id):
+    def update(self, task_id, success):
         """Update success counts based on task_id."""
         self.total_counts[task_id] += 1
-
-    def success(self, task_id):
-        """Update success counts based on task_id."""
-        self.success_counts[task_id] += 1
+        if success:
+            self.success_counts[task_id] += 1
 
     def task_success_rate(self, task_id):
         """Calculate success rate for a specific task."""
@@ -134,7 +132,6 @@ class MTPPO():
                     for epoch in range(int((self.batch_size / self.num_tasks) / self.max_cycles)): # 10         
 
                         next_obs, infos = task.reset(self.seed)
-                        success_tracker.count(i)
                         if self.normalize_states:
                             next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
                             next_obs = torch.clip(next_obs, -10, 10)
@@ -142,6 +139,7 @@ class MTPPO():
                         one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
                         
                         step_return = 0
+                        if_success = False
                         for step in range(0, self.max_cycles): # 500
                             # rollover the observation 
                             # obs = batchify_obs(next_obs, self.device)
@@ -164,10 +162,9 @@ class MTPPO():
                             success = info.get('success', 0.0)
                             if success != 0.0:
                                 print("!!!!!!!!!!", epoch, step, success)
-                                success_tracker.success(i)
+                                if_success = True
                                 term = 1.0
                                 next_obs, infos = task.reset(self.seed)
-                                success_tracker.count(i)
 
                             if self.normalize_states:
                                 next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
@@ -190,6 +187,7 @@ class MTPPO():
                             
 
                         episodic_return.append(step_return)
+                        success_tracker.update(i, if_success)
 
                         # advantage
                         gae = 0
@@ -310,9 +308,9 @@ class MTPPO():
             sr.append(success_tracker.overall_success_rate)
             
             if episode % 10 == 0:
-                
-                plt.plot(x, y)
-                plt.plot(x_eval, y_eval)
+                plt.plot(x, sr)
+                #plt.plot(x, y)
+                #plt.plot(x_eval, y_eval)
                 plt.title(f"Episode returns (train and eval) for seed {self.seed}")
                 plt.xlabel("Episodes")
                 plt.ylabel("Mean rewards")
