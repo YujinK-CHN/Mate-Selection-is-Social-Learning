@@ -161,7 +161,7 @@ class MTPPO():
 
                             success = info.get('success', 0.0)
                             if success != 0.0:
-                                print("!!!!!!!!!!", epoch, step, success)
+                                print("!!!!!!!!!!", i, epoch, step, success)
                                 if_success = True
                                 term = 1.0
                                 next_obs, infos = task.reset(self.seed)
