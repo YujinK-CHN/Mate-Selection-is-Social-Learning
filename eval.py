@@ -5,7 +5,7 @@ from policies.hier_policy_prompt import HierPolicy_prompt
 from policies.independent_policy import IndependentPolicy
 from policies.centralized_policy import CentralizedPolicy
 from policies.multitask_policy import MultiTaskPolicy
-
+import matplotlib.pyplot as plt
 import gymnasium as gym
 
 import numpy as np
@@ -74,29 +74,17 @@ config = {
         'batch_size': 4,
     }
 
-tasks = create_multitask_env()
-multi_task_env = MultiTaskEnv(tasks)
 
+x = [i for i in range(200)]
+seed = 788
+sr = np.load(f"logs/mtppo_3_30000_16_200_2024-09-15/seed788/sr_seed{seed}.npy")
+# sr_eval = np.load(f"logs/mtppo_3_30000_16_200_2024-09-15/seed788/sr_eval_seed788.npy")
 
-model = MultiTaskPolicy(
-            pop_size = config['pop_size'], 
-            env = multi_task_env,
-            num_tasks = len(multi_task_env.tasks),
-            continuous = config['continuous'],
-            device = config['device']
-        ).to(config['device'])
-'''
-model = CentralizedPolicy(
-            n_agents = config['n_agents'], 
-            input_dim = config['obs_shape'],
-            output_dim = config['num_actions'],
-            continuous = config['continuous'],
-            device = config['device']
-        ).to(config['device'])
-'''
-model.load_state_dict(torch.load('./models/mt_1_64_100000_1e-4_old.pt'))
-model.eval()
-run_trained_model(multi_task_env, model, config)
+plt.plot(x, sr)
+plt.title(f"Episode returns (train and eval) for seed {seed}")
+plt.xlabel("Episodes")
+plt.ylabel("Success Rate")
+plt.show()
 
 
 
