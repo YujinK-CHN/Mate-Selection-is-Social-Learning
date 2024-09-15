@@ -117,7 +117,7 @@ if __name__ == "__main__":
         'epoch_finetune': 8,
         'epoch_opt': 16,
         'total_episodes': 200,
-        'hidden_size': 128,
+        'hidden_size': 512,
         'lr': 0.0005
     }
 

@@ -332,13 +332,13 @@ class MTPPO():
                 for epoch in range(5):      
 
                     next_obs, infos = task.reset(self.seed)
-                    success_tracker_eval.count(i)
                     if self.normalize_states:
                         next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
                         next_obs = torch.clip(next_obs, -10, 10)
 
                     one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
                     step_return = 0
+                    if_success = False
                     for step in range(0, self.max_cycles): # 500
                         # rollover the observation 
                         # obs = batchify_obs(next_obs, self.device)
@@ -356,15 +356,15 @@ class MTPPO():
                         success = info.get('success', 0.0)
                         if success != 0.0:
                             print("!!!!!!!!!!", epoch, step, success)
-                            success_tracker_eval.success(i)
-                            next_obs, infos = task.reset(self.seed)
-                            success_tracker_eval.count(i)
+                            if_success = True
+                            break
 
                         if self.normalize_states:
                             next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
                             next_obs = torch.clip(next_obs, -10, 10)
                                 
                     episodic_return.append(step_return)
+                    success_tracker_eval.update(i, if_success)
                 task_returns.append(np.mean(episodic_return))
         return task_returns, success_tracker_eval.overall_success_rate()
 
