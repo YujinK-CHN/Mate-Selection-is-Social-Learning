@@ -110,7 +110,7 @@ class MTPPO():
 
             ''''''
             # learning Rate annealing
-            frac = 1.0 - (episode - 1.0) / self.total_episodes
+            frac = (episode - 1.0) / self.total_episodes
             new_lr = self.lr * (1.0 - frac)
             new_lr = max(new_lr, 0.0)
             self.opt.param_groups[0]["lr"] = new_lr
