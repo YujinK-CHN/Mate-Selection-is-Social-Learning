@@ -52,7 +52,7 @@ class MTPPO():
         self.normalize_values = config['normalize_values']
         self.normalize_rewards = config['normalize_rewards']
         self.num_tasks = len(env.tasks)
-        self.task_weights = torch.tensor([1., 1., 1., 1., 1., 1., 1., 1., 1., 1.], requires_grad=True)
+        self.task_weights = torch.tensor([1., 1., 1., 1., 1., 1., 1., 1., 1., 1.]).to(config['device'])
 
         self.policy = MultiTaskPolicy(
             env = env,
@@ -220,7 +220,8 @@ class MTPPO():
                     # select the indices we want to train on
                     end = start + self.min_batch
                     batch_index = rb_index[start:end]
-                    loss = torch.zeros(self.num_tasks, requires_grad=True)
+                    loss = torch.zeros(self.num_tasks).to(self.device)
+
                     for i, task in enumerate(self.env.tasks):
 
                         if self.continuous == True:
