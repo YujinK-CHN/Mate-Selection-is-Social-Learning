@@ -128,7 +128,7 @@ if __name__ == "__main__":
         'gae_lambda': 0.97,
         'batch_size': 100000,
         'max_path_length': 500,
-        'min_batch': 8, # if mtppo2, actual min-batch size = 8 * num_tasks
+        'min_batch': 32, 
         'epoch_merging': 4,
         'epoch_finetune': 8,
         'epoch_opt': 16,

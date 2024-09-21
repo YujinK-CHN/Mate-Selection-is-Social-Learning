@@ -14,6 +14,8 @@ from processing.l0module import L0GateLayer1d, concat_first_linear, concat_middl
 from policies.centralized_policy import CentralizedPolicy
 from policies.multitask_policy import MultiTaskPolicy
 
+from processing.normalizer import NormalizeObservation, NormalizeReward
+
 class MultiTaskSuccessTracker:
     def __init__(self, num_tasks):
         self.num_tasks = num_tasks
@@ -39,33 +41,6 @@ class MultiTaskSuccessTracker:
         if total_attempts == 0:
             return 0.0
         return total_successes / total_attempts
-
-class RewardsNormalizer:
-    def __init__(self, num_tasks, epsilon=1e-8):
-        self.mean = np.zeros(num_tasks)
-        self.var = np.ones(num_tasks)
-        self.count = np.zeros(num_tasks)
-        self.epsilon = epsilon
-
-    def update(self, task_id, reward):
-        # Increment count for the current task
-        self.count[task_id] += 1
-        
-        # Store the old mean before updating
-        old_mean = self.mean[task_id]
-        
-        # Update the running mean using Welford's algorithm
-        self.mean[task_id] += (reward - old_mean) / self.count[task_id]
-        
-        # Update the running variance (using the difference between the new reward and the updated mean)
-        self.var[task_id] += (reward - old_mean) * (reward - self.mean[task_id])
-
-    def normalize(self, task_id, reward):
-        # Compute the standard deviation
-        std = np.sqrt(self.var[task_id] / (self.count[task_id] + self.epsilon))
-        
-        # Normalize the reward using the updated mean and standard deviation
-        return (reward - self.mean[task_id]) / (std + self.epsilon)
     
 
 class SLE_MTPPO():
@@ -120,49 +95,56 @@ class SLE_MTPPO():
         self.fitness = None
     
     """ TRAINING LOGIC """
-    def eval(self, policy):
+    def eval(self, policy, norm_obs):
         task_returns = []
         success_tracker_eval = MultiTaskSuccessTracker(self.num_tasks)
         policy.eval()
         with torch.no_grad():
-            for i, task in enumerate(self.env.tasks):
-                # render 5 episodes out
+            for i, task in enumerate(self.env.tasks): # 10
                 episodic_return = []
-                for episode in range(5):
-                    next_obs, infos = task.reset()
+                    
+                for epoch in range(5):      
+
+                    next_obs, infos = task.reset(self.seed)
+                    if self.normalize_states:
+                        next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
+                        next_obs = torch.clip(next_obs, -10, 10)
+
                     one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
-                    terms = False
-                    truncs = False
                     step_return = 0
-                    if self.normalize_rewards:
-                        normalizer = RewardsNormalizer(num_tasks=self.num_tasks)
-                    while not terms and not truncs:
+                    if_success = False
+                    for step in range(0, self.max_cycles): # 500
                         # rollover the observation 
-                        #obs = batchify_obs(next_obs, self.device)
+                        # obs = batchify_obs(next_obs, self.device)
                         obs = torch.FloatTensor(next_obs)
                         obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                         # get actions from skills
-                        actions, logprobs, entropy, values = policy.act(obs)
+                        action, logprob, entropy, value = self.policy.get_action_and_value(obs)
 
                         # execute the environment and log data
-                        next_obs, reward, terms, truncs, infos = task.step(actions.cpu().numpy())
-                        success = infos.get('success', False)
-                        success_tracker_eval.update(i, success)
-                        if self.normalize_rewards:
-                            normalizer.update(i, reward)
-                            reward = normalizer.normalize(i, reward)
-                        terms = terms
-                        truncs = truncs
+                        action = torch.clip(action, -1, 1)  # action clip
+                        next_obs, reward, term, trunc, info = task.step(action.cpu().numpy())
                         step_return += reward
+
+                        success = info.get('success', 0.0)
+                        if success != 0.0:
+                            if_success = True
+                            break
+
+                        if self.normalize_states:
+                            next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
+                            next_obs = torch.clip(next_obs, -10, 10)
+                                
                     episodic_return.append(step_return)
-                
+                    success_tracker_eval.update(i, if_success)
                 task_returns.append(np.mean(episodic_return))
         return task_returns, success_tracker_eval.overall_success_rate()
             
-    def get_fitness(self, pop: list):
+    def get_fitness(self, pop: list, norm_obs_list: list):
         pool = mp.Pool()
-        results = pool.map(self.eval, pop)
+        process_inputs = [(pop[i], norm_obs_list[i]) for i in range(self.pop_size)]
+        results = pool.starmap(self.eval, process_inputs)
         policies_fitness = [res[0] for res in results]  # receive from multi-process
         success_rates = [res[1] for res in results]  # receive from multi-process
         return np.asarray(policies_fitness), success_rates
@@ -202,12 +184,14 @@ class SLE_MTPPO():
         sr_pop = []
         fitness_pop = []
         gen_mates = []
+        norm_obs_list = [NormalizeObservation(self.num_tasks) for _ in range(self.pop_size)]
         # Generations, 4000
         for episode in range(self.total_episodes):
             pop = copy.deepcopy(self.pop)
 
             # fitness func / evaluation: currently using rewards as fitness for each individual
-            fitness, success_rate = self.get_fitness(pop)
+            
+            fitness, success_rate = self.get_fitness(pop, norm_obs_list)
             fitness_pop.append(fitness)
             sr.append(np.mean(success_rate))
             sr_pop.append(success_rate)
@@ -237,14 +221,13 @@ class SLE_MTPPO():
             self.pop = [res[0] for res in results] # receive from multi-process
             seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
             seeds_episodic_sr = [res[2] for res in results]  # receive from multi-process
-            seeds_actor_loss = [res[3] for res in results]  # receive from multi-process
-            seeds_v_loss = [res[4] for res in results]  # receive from multi-process
+            seeds_loss = [res[3] for res in results]  # receive from multi-process
+            norm_obs_list = [res[4] for res in results]
 
             
             print(f"Episodic return: {np.mean(seeds_episodic_return)}")
             print(f"Episodic success rate: {np.mean(seeds_episodic_sr)}")
-            print(f"Episodic actor loss: {np.mean(seeds_actor_loss)}")
-            print(f"Episodic critic loss: {np.mean(seeds_v_loss)}")
+            print(f"Episodic loss: {np.mean(seeds_loss)}")
             print("\n-------------------------------------------\n")
 
             x = np.linspace(0, episode, episode+1)
@@ -261,6 +244,7 @@ class SLE_MTPPO():
     def train(self, env, policy):
 
         policy = self.train_merging_stage(env, policy)
+        
         important_indices1 = policy.shared_layers[2].important_indices()
         important_indices2 = policy.shared_layers[5].important_indices()
         policy.shared_layers = nn.Sequential(
@@ -272,16 +256,15 @@ class SLE_MTPPO():
             nn.Tanh(),
         )
 
-        policy, mean_episodic_return, episodic_success_rate, loss = self.train_finetune_stage(env, policy)
+        policy, mean_episodic_return, episodic_success_rate, loss, norm_obs = self.train_finetune_stage(env, policy)
                 
-        return policy, mean_episodic_return, episodic_success_rate, loss # a tuple of 4
+        return policy, mean_episodic_return, episodic_success_rate, loss, norm_obs # a tuple of 5
                 
 
     def train_merging_stage(self, env, policy):
 
         policy = copy.deepcopy(policy).to(self.device)
-        actor_opt = optim.Adam(policy.non_gate_parameters(), lr=self.lr, eps=1e-8)
-        critic_opt = optim.Adam(policy.critic.parameters(), lr=self.lr, eps=1e-8)
+        opt = optim.Adam(policy.non_gate_parameters(), lr=self.lr, eps=1e-5)
         opt_gate = optim.SGD(policy.gate_parameters(), lr=0.001, momentum=0.9)
         alpha = 0.01
 
@@ -297,18 +280,38 @@ class SLE_MTPPO():
         rb_advantages = torch.zeros((self.batch_size, 1)).to(self.device)
         rb_terms = torch.zeros((self.batch_size, 1)).to(self.device)
         rb_values = torch.zeros((self.batch_size, 1)).to(self.device)
-
-
+        
+        '''
+        # learning Rate annealing
+        frac = (episode - 1.0) / self.total_episodes
+        new_lr = self.lr * (1.0 - frac)
+        new_lr = max(new_lr, 0.0)
+        self.opt.param_groups[0]["lr"] = new_lr
+        '''
+            
         # sampling
         index = 0
+            
+        task_returns = []
+        success_tracker = MultiTaskSuccessTracker(self.num_tasks)
+        norm_obs = NormalizeObservation(self.num_tasks)
+        norm_rew = NormalizeReward(self.num_tasks)
             
         with torch.no_grad():
             for i, task in enumerate(env.tasks): # 10
                 episodic_return = []
-                for epoch in range(int((self.batch_size / self.num_tasks) / self.max_cycles)): # 10
+                    
+                for epoch in range(int((self.batch_size / self.num_tasks) / self.max_cycles)): # 10         
+
                     next_obs, infos = task.reset(self.seed)
+                    if self.normalize_states:
+                        next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
+                        next_obs = torch.clip(next_obs, -10, 10)
+
                     one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
+                        
                     step_return = 0
+                    if_success = False
                     for step in range(0, self.max_cycles): # 500
                         # rollover the observation 
                         # obs = batchify_obs(next_obs, self.device)
@@ -316,38 +319,56 @@ class SLE_MTPPO():
                         obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                         # get actions from skills
-                        actions, logprobs, entropy, values = policy.act(obs, i)
+                        action, logprob, entropy, value = policy.get_action_and_value(obs)
+                        # add to episode storage
+                        rb_actions[index] = action
+                        rb_logprobs[index] = logprob
+                        rb_values[index] = value.flatten()
 
                         # execute the environment and log data
-                        next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
+                        action = torch.clip(action, -1.0, 1.0)  # action clip
+                        next_obs, reward, term, trunc, info = task.step(action.cpu().numpy())
+                        step_return += reward
+                            
+
+                        success = info.get('success', 0.0)
+                        if success != 0.0:
+                            if_success = True
+                            term = 1.0
+                            next_obs, infos = task.reset(self.seed)
+
+                        if self.normalize_states:
+                            next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
+                            next_obs = torch.clip(next_obs, -10, 10)
+                                
+                        if self.normalize_rewards:
+                            reward = norm_rew.normalize(reward, term, i)
+                            reward = torch.clip(reward, -10, 10)
+
+                            
+                            
                             
                         # add to episode storage
                         rb_obs[index] = obs
-                        rb_rewards[index] = rewards
-                        rb_terms[index] = terms
-                        rb_actions[index] = actions
-                        rb_logprobs[index] = logprobs
-                        rb_values[index] = values.flatten()
-                        # compute episodic return
-                        step_return += rb_rewards[index].cpu().numpy()
-
-                        # if we reach termination or truncation, end
+                        rb_rewards[index] = reward
+                        rb_terms[index] = term
+                            
+                            
                         index += 1
-                        if terms or truncs:
-                            break
                             
 
+                    episodic_return.append(step_return)
+                    success_tracker.update(i, if_success)
 
                     # advantage
                     gae = 0
-                    # normalize rewards
-                    # rb_rewards[(index-self.max_cycles):(index-1)] = (rb_rewards[(index-self.max_cycles):(index-1)] - rb_rewards[(index-self.max_cycles):(index-1)].mean()) / (torch.std(rb_rewards[(index-self.max_cycles):(index-1)]) + 1e-8)
                     for t in range(index-2, (index-self.max_cycles)-1, -1):
                         delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
                         gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
                         rb_advantages[t] = gae
 
-                                       
+                        
+                task_returns.append(np.mean(episodic_return))
 
         # normalize advantaegs
         rb_returns = rb_advantages + rb_values
@@ -355,9 +376,11 @@ class SLE_MTPPO():
         # Optimizing the policy and value network
          
         rb_index = np.arange(rb_obs.shape[0])
-        for epoch in range(self.epoch_opt): # 16
+        clip_fracs = []
+        for epoch in range(self.epoch_opt): # 4
             # shuffle the indices we use to access the data
             np.random.shuffle(rb_index)
+                
                 
             for start in range(0, rb_obs.shape[0], self.min_batch):
                 # select the indices we want to train on
@@ -365,52 +388,58 @@ class SLE_MTPPO():
                 batch_index = rb_index[start:end]
 
                 if self.continuous == True:
-                    old_actions = rb_actions.long()[batch_index, :]
+                    old_actions = rb_actions[batch_index, :]
                 else:
                     old_actions = rb_actions.long()[batch_index, :]
-                _, newlogprob, entropy, values = policy.evaluate(
-                    x = rb_obs[batch_index, :],
-                    actions = old_actions,
-                    task_id=i
-                )
+                _, newlogprob, entropy, values = policy.get_action_and_value(x = rb_obs[batch_index, :], action = old_actions)
                     
                 logratio = newlogprob.unsqueeze(-1) - rb_logprobs[batch_index, :]
                 ratio = logratio.exp()
 
-                    
+                    # debug variable
+                with torch.no_grad():
+                    # calculate approx_kl http://joschu.net/blog/kl-approx.html
+                    old_approx_kl = (-logratio).mean()
+                    approx_kl = ((ratio - 1) - logratio).mean()
+                    clip_fracs += [
+                        ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
+                    ]
+
+                # Advantage normalization
                 advantages = rb_advantages[batch_index, :]
                 advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)    
 
                 # Policy loss
-                pg_loss1 = advantages * ratio
-                pg_loss2 = advantages * torch.clamp(
-                    ratio, 1 - self.clip_coef, 1 + self.clip_coef
+                pg_loss1 = -advantages * ratio
+                pg_loss2 = -advantages * torch.clamp(ratio, 1 - self.clip_coef, 1 + self.clip_coef)
+                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
+                v_loss_unclipped = (values - rb_returns[batch_index, :]) ** 2
+                v_clipped = rb_values[batch_index, :] + torch.clamp(
+                    values - rb_values[batch_index, :],
+                    -self.clip_coef,
+                    self.clip_coef,
                 )
-                pg_loss = torch.min(pg_loss1, pg_loss2)
-                pg_loss += self.ent_coef * entropy.unsqueeze(-1)
 
-                actor_loss = -pg_loss.mean()
+                v_loss_clipped = (v_clipped - rb_returns[batch_index, :]) ** 2
+                v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                v_loss = 0.5 * v_loss_max.mean()
 
-                v_loss = nn.MSELoss()(values, rb_returns[batch_index, :])
+                entropy_loss = entropy.mean()
+                loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
 
                 l0_loss = alpha * policy.l0_loss()
                 # print(l0_loss)
 
-                actor_loss = actor_loss + l0_loss
-
-                # Calculate gradients and perform backward propagation for actor and gate network
-                actor_opt.zero_grad()
+                loss = loss + l0_loss
+                    
+                opt.zero_grad()
                 opt_gate.zero_grad()
-                actor_loss.backward(retain_graph=True)
-                nn.utils.clip_grad_norm_(policy.non_gate_parameters(), self.max_grad_norm)
-                actor_opt.step()
+                loss.backward()
+                nn.utils.clip_grad_norm_(policy.parameters(), self.max_grad_norm)
+                opt.step()
                 opt_gate.step()
 
-                # Calculate gradients and perform backward propagation for critic network
-                critic_opt.zero_grad()
-                v_loss.backward()
-                nn.utils.clip_grad_norm_(policy.critic.parameters(), self.max_grad_norm)
-                critic_opt.step()
 
             alpha += 0.05 * math.sqrt(alpha)
         
@@ -419,8 +448,7 @@ class SLE_MTPPO():
     def train_finetune_stage(self, env, policy):
 
         policy = copy.deepcopy(policy).to(self.device)
-        actor_opt = optim.Adam(policy.actor(), lr=self.lr, eps=1e-8)
-        critic_opt = optim.Adam(policy.critic.parameters(), lr=self.lr, eps=1e-8)
+        opt = optim.Adam(policy.parameters(), lr=self.lr, eps=1e-5)
 
         policy.train()
         # clear memory
@@ -434,20 +462,38 @@ class SLE_MTPPO():
         rb_advantages = torch.zeros((self.batch_size, 1)).to(self.device)
         rb_terms = torch.zeros((self.batch_size, 1)).to(self.device)
         rb_values = torch.zeros((self.batch_size, 1)).to(self.device)
-
-
+        
+        '''
+        # learning Rate annealing
+        frac = (episode - 1.0) / self.total_episodes
+        new_lr = self.lr * (1.0 - frac)
+        new_lr = max(new_lr, 0.0)
+        self.opt.param_groups[0]["lr"] = new_lr
+        '''
+            
         # sampling
         index = 0
             
         task_returns = []
         success_tracker = MultiTaskSuccessTracker(self.num_tasks)
+        norm_obs = NormalizeObservation(self.num_tasks)
+        norm_rew = NormalizeReward(self.num_tasks)
+            
         with torch.no_grad():
             for i, task in enumerate(env.tasks): # 10
                 episodic_return = []
-                for epoch in range(int((self.batch_size / self.num_tasks) / self.max_cycles)): # 10
+                    
+                for epoch in range(int((self.batch_size / self.num_tasks) / self.max_cycles)): # 10         
+
                     next_obs, infos = task.reset(self.seed)
+                    if self.normalize_states:
+                        next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
+                        next_obs = torch.clip(next_obs, -10, 10)
+
                     one_hot_id = torch.diag(torch.ones(self.num_tasks))[i]
+                        
                     step_return = 0
+                    if_success = False
                     for step in range(0, self.max_cycles): # 500
                         # rollover the observation 
                         # obs = batchify_obs(next_obs, self.device)
@@ -455,52 +501,68 @@ class SLE_MTPPO():
                         obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                         # get actions from skills
-                        actions, logprobs, entropy, values = policy.act(obs, i)
+                        action, logprob, entropy, value = policy.get_action_and_value(obs)
+                        # add to episode storage
+                        rb_actions[index] = action
+                        rb_logprobs[index] = logprob
+                        rb_values[index] = value.flatten()
 
                         # execute the environment and log data
-                        next_obs, rewards, terms, truncs, infos = task.step(actions.cpu().numpy())
-                        success = infos.get('success', 0.0)
-                        success_tracker.update(i, success)
+                        action = torch.clip(action, -1.0, 1.0)  # action clip
+                        next_obs, reward, term, trunc, info = task.step(action.cpu().numpy())
+                        step_return += reward
+                            
+
+                        success = info.get('success', 0.0)
+                        if success != 0.0:
+                            if_success = True
+                            term = 1.0
+                            next_obs, infos = task.reset(self.seed)
+
+                        if self.normalize_states:
+                            next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
+                            next_obs = torch.clip(next_obs, -10, 10)
+                                
+                        if self.normalize_rewards:
+                            reward = norm_rew.normalize(reward, term, i)
+                            reward = torch.clip(reward, -10, 10)
+
+                            
+                            
                             
                         # add to episode storage
                         rb_obs[index] = obs
-                        rb_rewards[index] = rewards
-                        rb_terms[index] = terms
-                        rb_actions[index] = actions
-                        rb_logprobs[index] = logprobs
-                        rb_values[index] = values.flatten()
-                        # compute episodic return
-                        step_return += rb_rewards[index].cpu().numpy()
-
-                        # if we reach termination or truncation, end
+                        rb_rewards[index] = reward
+                        rb_terms[index] = term
+                            
+                            
                         index += 1
-                        if terms or truncs:
-                            break
                             
 
                     episodic_return.append(step_return)
+                    success_tracker.update(i, if_success)
 
                     # advantage
                     gae = 0
-                    # normalize rewards
-                    # rb_rewards[(index-self.max_cycles):(index-1)] = (rb_rewards[(index-self.max_cycles):(index-1)] - rb_rewards[(index-self.max_cycles):(index-1)].mean()) / (torch.std(rb_rewards[(index-self.max_cycles):(index-1)]) + 1e-8)
                     for t in range(index-2, (index-self.max_cycles)-1, -1):
                         delta = rb_rewards[t] + self.discount * rb_values[t + 1] * rb_terms[t + 1] - rb_values[t]
                         gae = delta + self.discount * self.gae_lambda * rb_terms[t] * gae
                         rb_advantages[t] = gae
 
                         
-                task_returns.append(np.mean(episodic_return))                   
+                task_returns.append(np.mean(episodic_return))
 
         # normalize advantaegs
         rb_returns = rb_advantages + rb_values
 
         # Optimizing the policy and value network
-
+         
         rb_index = np.arange(rb_obs.shape[0])
-        for epoch in range(self.epoch_opt): # 16
+        clip_fracs = []
+        for epoch in range(self.epoch_opt): # 4
             # shuffle the indices we use to access the data
             np.random.shuffle(rb_index)
+                
                 
             for start in range(0, rb_obs.shape[0], self.min_batch):
                 # select the indices we want to train on
@@ -508,53 +570,52 @@ class SLE_MTPPO():
                 batch_index = rb_index[start:end]
 
                 if self.continuous == True:
-                    old_actions = rb_actions.long()[batch_index, :]
+                    old_actions = rb_actions[batch_index, :]
                 else:
                     old_actions = rb_actions.long()[batch_index, :]
-                _, newlogprob, entropy, values = policy.evaluate(
-                    x = rb_obs[batch_index, :],
-                    actions = old_actions,
-                    task_id=i
-                )
+                _, newlogprob, entropy, values = policy.get_action_and_value(x = rb_obs[batch_index, :], action = old_actions)
                     
                 logratio = newlogprob.unsqueeze(-1) - rb_logprobs[batch_index, :]
                 ratio = logratio.exp()
 
-                    
+                    # debug variable
+                with torch.no_grad():
+                    # calculate approx_kl http://joschu.net/blog/kl-approx.html
+                    old_approx_kl = (-logratio).mean()
+                    approx_kl = ((ratio - 1) - logratio).mean()
+                    clip_fracs += [
+                        ((ratio - 1.0).abs() > self.clip_coef).float().mean().item()
+                    ]
+
+                # Advantage normalization
                 advantages = rb_advantages[batch_index, :]
                 advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)    
 
                 # Policy loss
-                pg_loss1 = advantages * ratio
-                pg_loss2 = advantages * torch.clamp(
-                    ratio, 1 - self.clip_coef, 1 + self.clip_coef
+                pg_loss1 = -advantages * ratio
+                pg_loss2 = -advantages * torch.clamp(ratio, 1 - self.clip_coef, 1 + self.clip_coef)
+                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
+                v_loss_unclipped = (values - rb_returns[batch_index, :]) ** 2
+                v_clipped = rb_values[batch_index, :] + torch.clamp(
+                    values - rb_values[batch_index, :],
+                    -self.clip_coef,
+                    self.clip_coef,
                 )
-                pg_loss = torch.min(pg_loss1, pg_loss2)
-                pg_loss += self.ent_coef * entropy.unsqueeze(-1)
 
-                actor_loss = -pg_loss.mean()
+                v_loss_clipped = (v_clipped - rb_returns[batch_index, :]) ** 2
+                v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                v_loss = 0.5 * v_loss_max.mean()
 
-                v_loss = nn.MSELoss()(values, rb_returns[batch_index, :])
-
-
-                '''
-                self.opt.zero_grad()
+                entropy_loss = entropy.mean()
+                loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
+                    
+                opt.zero_grad()
                 loss.backward()
-                self.opt.step()
-                '''
-                # Calculate gradients and perform backward propagation for actor network
-                actor_opt.zero_grad()
-                actor_loss.backward(retain_graph=True)
-                nn.utils.clip_grad_norm_(policy.shared_layers.parameters(), self.max_grad_norm)
-                actor_opt.step()
-
-                # Calculate gradients and perform backward propagation for critic network
-                critic_opt.zero_grad()
-                v_loss.backward()
-                nn.utils.clip_grad_norm_(policy.critic.parameters(), self.max_grad_norm)
-                critic_opt.step()
+                nn.utils.clip_grad_norm_(policy.parameters(), self.max_grad_norm)
+                opt.step()
         
-        return policy, np.mean(task_returns), success_tracker.overall_success_rate(), actor_loss.item(), v_loss.item()
+        return policy, np.mean(task_returns), success_tracker.overall_success_rate(), loss.item(), norm_obs
 
 
     def save(self, path):
