@@ -15,6 +15,7 @@ from policies.centralized_policy import CentralizedPolicy
 from policies.multitask_policy import MultiTaskPolicy
 
 from processing.normalizer import NormalizeObservation, NormalizeReward
+from processing.mating import pairwise_scores, probability_distribution, sample_mates
 
 class MultiTaskSuccessTracker:
     def __init__(self, num_tasks):
@@ -151,9 +152,10 @@ class SLE_MTPPO():
 
 
     def select(self, pop: list, fitness: np.array) -> torch.nn.ModuleList:
-        idx = np.random.choice(np.arange(self.pop_size), size=self.pop_size, p=np.mean(fitness, axis=-1)/np.sum(np.mean(fitness, axis=-1)))
-        mates = [pop[i] for i in idx]
-        return mates, idx
+        score_matrix = pairwise_scores(fitness)
+        prob_matrix = probability_distribution(score_matrix)
+        mates, mate_indices = sample_mates(pop, prob_matrix)
+        return mates, mate_indices
 
 
     def crossover(self, parent1: torch.nn.Sequential, parent2: torch.nn.Sequential) -> torch.nn.Sequential:
@@ -244,7 +246,7 @@ class SLE_MTPPO():
     def train(self, env, policy):
 
         policy = self.train_merging_stage(env, policy)
-        
+
         important_indices1 = policy.shared_layers[2].important_indices()
         important_indices2 = policy.shared_layers[5].important_indices()
         policy.shared_layers = nn.Sequential(
