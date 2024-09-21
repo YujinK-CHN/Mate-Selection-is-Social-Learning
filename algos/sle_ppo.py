@@ -52,6 +52,7 @@ class SLE_MTPPO():
             config
     ):
         self.env = env
+        self.seed = env.seed
         self.obs_shape = env.observation_space.shape[0]
         self.device = config['device']
         self.name = 'sle-mtppo'
@@ -96,12 +97,12 @@ class SLE_MTPPO():
         self.fitness = None
     
     """ TRAINING LOGIC """
-    def eval(self, policy, norm_obs):
+    def eval(self, env, policy, norm_obs):
         task_returns = []
         success_tracker_eval = MultiTaskSuccessTracker(self.num_tasks)
         policy.eval()
         with torch.no_grad():
-            for i, task in enumerate(self.env.tasks): # 10
+            for i, task in enumerate(env.tasks): # 10
                 episodic_return = []
                     
                 for epoch in range(5):      
@@ -143,8 +144,9 @@ class SLE_MTPPO():
         return task_returns, success_tracker_eval.overall_success_rate()
             
     def get_fitness(self, pop: list, norm_obs_list: list):
+        envs = [copy.deepcopy(self.env) for _ in range(self.pop_size)]
         pool = mp.Pool()
-        process_inputs = [(pop[i], norm_obs_list[i]) for i in range(self.pop_size)]
+        process_inputs = [(envs[i], pop[i], norm_obs_list[i]) for i in range(self.pop_size)]
         results = pool.starmap(self.eval, process_inputs)
         policies_fitness = [res[0] for res in results]  # receive from multi-process
         success_rates = [res[1] for res in results]  # receive from multi-process
@@ -154,6 +156,8 @@ class SLE_MTPPO():
     def select(self, pop: list, fitness: np.array) -> torch.nn.ModuleList:
         score_matrix = pairwise_scores(fitness)
         prob_matrix = probability_distribution(score_matrix)
+        print(score_matrix)
+        print(prob_matrix)
         mates, mate_indices = sample_mates(pop, prob_matrix)
         return mates, mate_indices
 
@@ -215,9 +219,9 @@ class SLE_MTPPO():
                 self.pop[i].shared_layers = child
                 
             ################################ Training ##################################
-            env = [copy.deepcopy(self.env) for _ in range(self.pop_size)]
+            envs = [copy.deepcopy(self.env) for _ in range(self.pop_size)]
             pool = mp.Pool()
-            process_inputs = [(env[i], self.pop[i]) for i in range(self.pop_size)]
+            process_inputs = [(envs[i], self.pop[i]) for i in range(self.pop_size)]
             results = pool.starmap(self.train, process_inputs)
 
             self.pop = [res[0] for res in results] # receive from multi-process

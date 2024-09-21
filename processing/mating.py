@@ -44,8 +44,8 @@ def probability_distribution(score_matrix):
 score_matrix = pairwise_scores(fitness_vectors)
 prob_matrix = probability_distribution(score_matrix)
 
-print("PyTorch Scores Matrix:\n", score_matrix)
-print("PyTorch Probability Matrix:\n", prob_matrix)
+#print("PyTorch Scores Matrix:\n", score_matrix)
+#print("PyTorch Probability Matrix:\n", prob_matrix)
 
 # 'prob_matrix' contains the pairwise probabilities for mating
 def sample_mates(pop, prob_matrix):

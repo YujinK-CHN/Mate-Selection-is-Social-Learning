@@ -164,9 +164,9 @@ if __name__ == "__main__":
     """ ENV SETUP """
     
     seeds = random_seeds()
-    seeds_ppo = seeding('mtppo', seeds, config)
+    #seeds_ppo = seeding('mtppo', seeds, config)
     #run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
-    training(config, seeds_ppo[1])
-    #training(config, sle)
+    #training(config, seeds_ppo[1])
+    training(config, SLE_MTPPO(MultiTaskEnv(seeds[1]), config))
     
