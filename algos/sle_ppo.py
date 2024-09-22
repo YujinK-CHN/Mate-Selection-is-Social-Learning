@@ -149,6 +149,7 @@ class SLE_MTPPO():
         return task_returns, success_tracker_eval.overall_success_rate()
             
     def get_fitness(self, pop: list, norm_obs_list: list, norm_rew_list: list):
+        print("Getting fitness for each agent of population...")
         ######
         '''
         envs = [copy.deepcopy(self.env) for _ in range(self.pop_size)]
@@ -165,14 +166,15 @@ class SLE_MTPPO():
             fitness, sr = self.eval(self.env, agent, norm_obs_list[i], norm_rew_list[i])
             policies_fitness.append(fitness)
             success_rates.append(sr)
+            print(f"Agent {i} evaluating complete.")
         return np.asarray(policies_fitness), success_rates
 
 
     def select(self, pop: list, fitness: np.array) -> torch.nn.ModuleList:
         score_matrix = pairwise_scores(torch.from_numpy(fitness))
         prob_matrix = probability_distribution(score_matrix)
-        print(score_matrix)
-        print(prob_matrix)
+        print("Score matrix: ", score_matrix)
+        print("Prob matrix: ", prob_matrix)
         mates, mate_indices = sample_mates(pop, prob_matrix)
         return mates, mate_indices
 
@@ -237,7 +239,7 @@ class SLE_MTPPO():
                 child = self.crossover(policy.shared_layers, mates[i].shared_layers)
                 child = self.mutate(child, self.mutation_mean, self.mutation_std)
                 self.pop[i].shared_layers = child
-                
+            print("Finished crossover and mutation.")
             ################################ Training ##################################
             '''
             envs = [copy.deepcopy(self.env) for _ in range(self.pop_size)]
@@ -258,7 +260,8 @@ class SLE_MTPPO():
             seeds_loss = []
             norm_obs_list = []
             norm_rew_list = []
-            for agent in self.pop:
+            print(f"Episode {episode} training begin...")
+            for i, agent in enumerate(self.pop):
                 trained_agent, episodic_return, episodic_sr, loss, nb, nr = self.train(self.env, agent)
                 trained_pop.append(trained_agent)
                 seeds_episodic_return.append(episodic_return)
@@ -266,7 +269,9 @@ class SLE_MTPPO():
                 seeds_loss.append(loss)
                 norm_obs_list.append(nb)
                 norm_rew_list.append(nr)
+                print(f"Agent {i} training complete.")
             self.pop = trained_pop
+            print("New population is generated!")
             ################################ Training ##################################
 
             
@@ -289,9 +294,9 @@ class SLE_MTPPO():
 
 
     def train(self, env, policy):
-
+        print("Start merging with mates...")
         policy = self.train_merging_stage(env, policy)
-
+        print("Done.")
         important_indices1 = policy.shared_layers[2].important_indices()
         important_indices2 = policy.shared_layers[5].important_indices()
         policy.shared_layers = nn.Sequential(
@@ -301,7 +306,7 @@ class SLE_MTPPO():
             nn.Tanh(),
             compress_final_linear(policy.shared_layers[-1], important_indices2)
         )
-
+        print("Finished compressing big agent. Start finetuning...")
         policy, mean_episodic_return, episodic_success_rate, loss, norm_obs = self.train_finetune_stage(env, policy)
                 
         return policy, mean_episodic_return, episodic_success_rate, loss, norm_obs # a tuple of 5
