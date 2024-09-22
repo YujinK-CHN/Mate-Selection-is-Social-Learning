@@ -307,9 +307,9 @@ class SLE_MTPPO():
             compress_final_linear(policy.shared_layers[-1], important_indices2)
         )
         print("Finished compressing big agent. Start finetuning...")
-        policy, mean_episodic_return, episodic_success_rate, loss, norm_obs = self.train_finetune_stage(env, policy)
+        policy, mean_episodic_return, episodic_success_rate, loss, norm_obs, norm_rew = self.train_finetune_stage(env, policy)
                 
-        return policy, mean_episodic_return, episodic_success_rate, loss, norm_obs # a tuple of 5
+        return policy, mean_episodic_return, episodic_success_rate, loss, norm_obs, norm_rew # a tuple of 6
                 
 
     def train_merging_stage(self, env, policy):
