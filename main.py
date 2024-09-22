@@ -115,7 +115,7 @@ class MultiTaskEnv():
 if __name__ == "__main__":
     """ALGO PARAMS"""
     config = {
-        'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+        'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"), #"cuda" if torch.cuda.is_available() else "cpu" 
         'continuous': True,
         'normalize_states': True,
         'normalize_values': False,

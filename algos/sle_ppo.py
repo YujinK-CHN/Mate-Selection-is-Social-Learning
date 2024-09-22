@@ -127,6 +127,9 @@ class SLE_MTPPO():
                         # execute the environment and log data
                         action = torch.clip(action, -1, 1)  # action clip
                         next_obs, reward, term, trunc, info = task.step(action.cpu().numpy())
+                        if self.normalize_rewards:
+                            reward = norm_rew.normalize(reward, term, i)
+                            reward = torch.clip(reward, -10, 10)
                         step_return += reward
 
                         success = info.get('success', 0.0)
@@ -138,9 +141,7 @@ class SLE_MTPPO():
                             next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
                             next_obs = torch.clip(next_obs, -10, 10)
 
-                        if self.normalize_rewards:
-                            reward = norm_rew.normalize(reward, term, i)
-                            reward = torch.clip(reward, -10, 10)
+                        
                                 
                     episodic_return.append(step_return)
                     success_tracker_eval.update(i, if_success)
@@ -148,12 +149,22 @@ class SLE_MTPPO():
         return task_returns, success_tracker_eval.overall_success_rate()
             
     def get_fitness(self, pop: list, norm_obs_list: list, norm_rew_list: list):
+        ######
+        '''
         envs = [copy.deepcopy(self.env) for _ in range(self.pop_size)]
         pool = mp.Pool()
         process_inputs = [(envs[i], pop[i], norm_obs_list[i], norm_rew_list[i]) for i in range(self.pop_size)]
         results = pool.starmap(self.eval, process_inputs)
         policies_fitness = [res[0] for res in results]  # receive from multi-process
         success_rates = [res[1] for res in results]  # receive from multi-process
+        '''
+        ######
+        policies_fitness = []
+        success_rates = []
+        for i, agent in enumerate(pop):
+            fitness, sr = self.eval(self.env, agent, norm_obs_list[i], norm_rew_list[i])
+            policies_fitness.append(fitness)
+            success_rates.append(sr)
         return np.asarray(policies_fitness), success_rates
 
 
@@ -208,12 +219,12 @@ class SLE_MTPPO():
             
             fitness, success_rate = self.get_fitness(pop, norm_obs_list, norm_rew_list)
             fitness_pop.append(fitness)
-            sr.append(np.mean(success_rate))
+            sr.append(np.max(success_rate))
             sr_pop.append(success_rate)
             self.fitness = fitness
             print(f"Training episode {episode}")
             print(f"Evaluation return: {fitness}")
-            print(f"Evaluation success rate: {np.mean(success_rate)}")
+            print(f"Evaluation success rate: {success_rate}")
 
             # mate selection: for each actor in the pop, select one mate from the pop respect to the rule.
             mates, mate_indices = self.select(pop, fitness)
@@ -228,6 +239,7 @@ class SLE_MTPPO():
                 self.pop[i].shared_layers = child
                 
             ################################ Training ##################################
+            '''
             envs = [copy.deepcopy(self.env) for _ in range(self.pop_size)]
             pool = mp.Pool()
             process_inputs = [(envs[i], self.pop[i]) for i in range(self.pop_size)]
@@ -239,17 +251,34 @@ class SLE_MTPPO():
             seeds_loss = [res[3] for res in results]  # receive from multi-process
             norm_obs_list = [res[4] for res in results]
             norm_rew_list = [res[5] for res in results]
+            '''
+            trained_pop = []
+            seeds_episodic_return = []
+            seeds_episodic_sr = []
+            seeds_loss = []
+            norm_obs_list = []
+            norm_rew_list = []
+            for agent in self.pop:
+                trained_agent, episodic_return, episodic_sr, loss, nb, nr = self.train(self.env, agent)
+                trained_pop.append(trained_agent)
+                seeds_episodic_return.append(episodic_return)
+                seeds_episodic_sr.append(episodic_sr)
+                seeds_loss.append(loss)
+                norm_obs_list.append(nb)
+                norm_rew_list.append(nr)
+            self.pop = trained_pop
+            ################################ Training ##################################
 
             
             print(f"Episodic return: {seeds_episodic_return}")
-            print(f"Episodic mean return: {np.mean(seeds_episodic_return)}")
+            print(f"Episodic max return: {np.max(seeds_episodic_return)}")
             print(f"Episodic success rate: {seeds_episodic_sr}")
-            print(f"Episodic mean success rate: {np.mean(seeds_episodic_sr)}")
+            print(f"Episodic max success rate: {np.max(seeds_episodic_sr)}")
             print(f"Episodic loss: {np.mean(seeds_loss)}")
             print("\n-------------------------------------------\n")
 
             x.append(episode)
-            y.append(np.mean(seeds_episodic_return))
+            y.append(np.max(seeds_episodic_return))
             y_pop.append(seeds_episodic_return)
             
             if episode % 10 == 0:
