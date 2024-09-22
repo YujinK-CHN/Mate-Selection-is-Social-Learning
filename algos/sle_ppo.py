@@ -69,7 +69,7 @@ class SLE_MTPPO():
             for _ in range(config['pop_size'])
         ]
 
-        
+        self.max_grad_norm = 0.5
         self.normalize_states = config['normalize_states']
         self.normalize_values = config['normalize_values']
         self.normalize_rewards = config['normalize_rewards']
@@ -97,7 +97,7 @@ class SLE_MTPPO():
         self.fitness = None
     
     """ TRAINING LOGIC """
-    def eval(self, env, policy, norm_obs):
+    def eval(self, env, policy, norm_obs, norm_rew):
         task_returns = []
         success_tracker_eval = MultiTaskSuccessTracker(self.num_tasks)
         policy.eval()
@@ -122,7 +122,7 @@ class SLE_MTPPO():
                         obs = torch.concatenate((obs, one_hot_id), dim=-1).to(self.device)
 
                         # get actions from skills
-                        action, logprob, entropy, value = self.policy.get_action_and_value(obs)
+                        action, logprob, entropy, value = policy.get_action_and_value(obs)
 
                         # execute the environment and log data
                         action = torch.clip(action, -1, 1)  # action clip
@@ -137,16 +137,20 @@ class SLE_MTPPO():
                         if self.normalize_states:
                             next_obs = norm_obs.normalize(torch.FloatTensor(next_obs), i)
                             next_obs = torch.clip(next_obs, -10, 10)
+
+                        if self.normalize_rewards:
+                            reward = norm_rew.normalize(reward, term, i)
+                            reward = torch.clip(reward, -10, 10)
                                 
                     episodic_return.append(step_return)
                     success_tracker_eval.update(i, if_success)
                 task_returns.append(np.mean(episodic_return))
         return task_returns, success_tracker_eval.overall_success_rate()
             
-    def get_fitness(self, pop: list, norm_obs_list: list):
+    def get_fitness(self, pop: list, norm_obs_list: list, norm_rew_list: list):
         envs = [copy.deepcopy(self.env) for _ in range(self.pop_size)]
         pool = mp.Pool()
-        process_inputs = [(envs[i], pop[i], norm_obs_list[i]) for i in range(self.pop_size)]
+        process_inputs = [(envs[i], pop[i], norm_obs_list[i], norm_rew_list[i]) for i in range(self.pop_size)]
         results = pool.starmap(self.eval, process_inputs)
         policies_fitness = [res[0] for res in results]  # receive from multi-process
         success_rates = [res[1] for res in results]  # receive from multi-process
@@ -154,7 +158,7 @@ class SLE_MTPPO():
 
 
     def select(self, pop: list, fitness: np.array) -> torch.nn.ModuleList:
-        score_matrix = pairwise_scores(fitness)
+        score_matrix = pairwise_scores(torch.from_numpy(fitness))
         prob_matrix = probability_distribution(score_matrix)
         print(score_matrix)
         print(prob_matrix)
@@ -165,6 +169,9 @@ class SLE_MTPPO():
     def crossover(self, parent1: torch.nn.Sequential, parent2: torch.nn.Sequential) -> torch.nn.Sequential:
         child = nn.Sequential(
             concat_first_linear(parent1[0], parent2[0]),
+            nn.Tanh(),
+            L0GateLayer1d(n_features=self.hidden_size*2),
+            concat_middle_linear(parent1[2], parent2[2]),
             nn.Tanh(),
             L0GateLayer1d(n_features=self.hidden_size*2),
             concat_last_linear(parent1[-1], parent2[-1]),
@@ -179,11 +186,12 @@ class SLE_MTPPO():
                     with torch.no_grad():
                         module.weight.add_(torch.randn(module.weight.size()) * std + mean)
                         if module.bias is not None:
-                            module.bias.add_(torch.randn(module.bias.size()) * std + mean)
+                            module.bias.add_(torch.randn(module.bias.size(), device=module.bias.device) * std + mean)
         return child
     
 
     def evolve(self):
+        x = []
         y = []
         sr = []
         y_pop = []
@@ -191,13 +199,14 @@ class SLE_MTPPO():
         fitness_pop = []
         gen_mates = []
         norm_obs_list = [NormalizeObservation(self.num_tasks) for _ in range(self.pop_size)]
+        norm_rew_list = [NormalizeReward(self.num_tasks) for _ in range(self.pop_size)]
         # Generations, 4000
         for episode in range(self.total_episodes):
             pop = copy.deepcopy(self.pop)
 
             # fitness func / evaluation: currently using rewards as fitness for each individual
             
-            fitness, success_rate = self.get_fitness(pop, norm_obs_list)
+            fitness, success_rate = self.get_fitness(pop, norm_obs_list, norm_rew_list)
             fitness_pop.append(fitness)
             sr.append(np.mean(success_rate))
             sr_pop.append(success_rate)
@@ -229,14 +238,17 @@ class SLE_MTPPO():
             seeds_episodic_sr = [res[2] for res in results]  # receive from multi-process
             seeds_loss = [res[3] for res in results]  # receive from multi-process
             norm_obs_list = [res[4] for res in results]
+            norm_rew_list = [res[5] for res in results]
 
             
-            print(f"Episodic return: {np.mean(seeds_episodic_return)}")
-            print(f"Episodic success rate: {np.mean(seeds_episodic_sr)}")
+            print(f"Episodic return: {seeds_episodic_return}")
+            print(f"Episodic mean return: {np.mean(seeds_episodic_return)}")
+            print(f"Episodic success rate: {seeds_episodic_sr}")
+            print(f"Episodic mean success rate: {np.mean(seeds_episodic_sr)}")
             print(f"Episodic loss: {np.mean(seeds_loss)}")
             print("\n-------------------------------------------\n")
 
-            x = np.linspace(0, episode, episode+1)
+            x.append(episode)
             y.append(np.mean(seeds_episodic_return))
             y_pop.append(seeds_episodic_return)
             
@@ -258,8 +270,7 @@ class SLE_MTPPO():
             nn.Tanh(),
             compress_middle_linear(policy.shared_layers[3], important_indices1, important_indices2),
             nn.Tanh(),
-            compress_final_linear(policy.shared_layers[-2], important_indices2),
-            nn.Tanh(),
+            compress_final_linear(policy.shared_layers[-1], important_indices2)
         )
 
         policy, mean_episodic_return, episodic_success_rate, loss, norm_obs = self.train_finetune_stage(env, policy)
@@ -621,7 +632,7 @@ class SLE_MTPPO():
                 nn.utils.clip_grad_norm_(policy.parameters(), self.max_grad_norm)
                 opt.step()
         
-        return policy, np.mean(task_returns), success_tracker.overall_success_rate(), loss.item(), norm_obs
+        return policy, np.mean(task_returns), success_tracker.overall_success_rate(), loss.item(), norm_obs, norm_rew
 
 
     def save(self, path):

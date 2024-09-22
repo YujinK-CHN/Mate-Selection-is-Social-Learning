@@ -60,7 +60,7 @@ class MultiTaskPolicy(nn.Module):
         return chain(self.shared_layers[2].parameters(), self.shared_layers[5].parameters())
 
     def non_gate_parameters(self):
-        return chain(self.log_std, self.shared_layers[0].parameters(), self.shared_layers[3].parameters(), self.shared_layers[-2].parameters(), self.critic.parameters())
+        return [self.log_std] + list(self.shared_layers[0].parameters()) + list(self.shared_layers[3].parameters()) + list(self.shared_layers[-1].parameters()) + list(self.critic.parameters())
     
     def l0_loss(self):
         return self.shared_layers[2].l0_loss() + self.shared_layers[5].l0_loss()
