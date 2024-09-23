@@ -206,6 +206,7 @@ class SLE_MTPPO():
     def evolve(self):
         x = []
         y = []
+        z = []
         sr = []
         y_pop = []
         sr_pop = []
@@ -284,10 +285,11 @@ class SLE_MTPPO():
 
             x.append(episode)
             y.append(np.max(seeds_episodic_return))
+            z.append(np.max(seeds_episodic_sr))
             y_pop.append(seeds_episodic_return)
             
             if episode % 10 == 0:
-                plt.plot(x, y)
+                plt.plot(x, z)
                 plt.pause(0.05)
         plt.show()
         return x, y, sr, y_pop, fitness_pop, sr_pop, gen_mates
