@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 import multiprocess as mp
 import copy
 import math
-from itertools import chain
+import os
+from datetime import date
 
 from processing.batching import batchify, batchify_obs, unbatchify
 from processing.l0module import L0GateLayer1d, concat_first_linear, concat_middle_linear, concat_last_linear,  \
@@ -274,7 +275,7 @@ class SLE_MTPPO():
             self.pop = trained_pop
             print("New population is generated!")
             ################################ Training ##################################
-
+            
             
             print(f"Episodic return: {seeds_episodic_return}")
             print(f"Episodic max return: {np.max(seeds_episodic_return)}")
@@ -289,6 +290,7 @@ class SLE_MTPPO():
             y_pop.append(seeds_episodic_return)
             
             if episode % 10 == 0:
+                self.logging(y, sr, y_pop, fitness_pop, sr_pop, gen_mates)
                 plt.plot(x, z)
                 plt.pause(0.05)
         plt.show()
@@ -674,3 +676,14 @@ class SLE_MTPPO():
     def save(self, path):
         fitness = torch.sum(self.fitness, dim=-1)
         torch.save(self.pop[torch.argmax(fitness, dim=-1)].state_dict(), path)
+    
+    def logging(self, y, sr, y_pop, fitness_pop, sr_pop, gen_mates):
+        
+        path_to_exp = f"./logs/{self.name}_{self.num_tasks}_{self.batch_size}_{self.epoch_opt}_{self.total_episodes}_{date.today()}"
+        os.makedirs(path_to_exp, exist_ok=True)
+        np.save(f"{path_to_exp}/algo_returns.npy", np.array(y))
+        np.save(f"{path_to_exp}/algo_sr.npy", np.array(sr))
+        np.save(f"{path_to_exp}/pop_returns.npy", np.array(y_pop))
+        np.save(f"{path_to_exp}/pop_sr.npy", np.array(sr_pop))
+        np.save(f"{path_to_exp}/pop_fitness.npy", np.array(fitness_pop))
+        np.save(f"{path_to_exp}/gen_mates.npy", np.array(gen_mates))
