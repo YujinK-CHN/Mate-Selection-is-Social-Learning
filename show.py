@@ -76,11 +76,16 @@ config = {
 
 
 x = [i for i in range(200)]
-seed = 788
-sr = np.load(f"logs/mtppo_3_30000_16_200_2024-09-15/seed788/sr_seed{seed}.npy")
-# sr_eval = np.load(f"logs/mtppo_3_30000_16_200_2024-09-15/seed788/sr_eval_seed788.npy")
+seed = 861
+eval_returns = np.load(f"logs/sle-mtppo_3tasks_3agents_30000_100_2024-09-26/{seed}/eval_returns.npy")
+eval_sr = np.load(f"logs/sle-mtppo_3tasks_3agents_30000_100_2024-09-26/{seed}/eval_sr.npy")
+eval_tasks_sr = np.load(f"logs/sle-mtppo_3tasks_3agents_30000_100_2024-09-26/{seed}/eval_tasks_sr.npy")
 
-plt.plot(x, sr)
+print(eval_returns)
+print(eval_sr)
+print(eval_tasks_sr)
+
+plt.plot(x, eval_sr)
 plt.title(f"Episode returns (train and eval) for seed {seed}")
 plt.xlabel("Episodes")
 plt.ylabel("Success Rate")
