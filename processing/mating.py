@@ -52,6 +52,16 @@ def sample_mates(pop, prob_matrix):
     pop_size = prob_matrix.shape[0]
     mates = []
     mate_indices = []
+
+    # Step 1: Set diagonal to zero to prevent self-mating
+    prob_matrix.fill_diagonal_(0)
+
+    # Step 2: Compute bidirectional probabilities by multiplying P(a1 -> a2) * P(a2 -> a1)
+    bidirectional_prob_matrix = prob_matrix * prob_matrix.T
+
+    # Step 3: Normalize rows to ensure valid probability distributions
+    row_sums = bidirectional_prob_matrix.sum(dim=1, keepdim=True)
+    bidirectional_prob_matrix = bidirectional_prob_matrix / row_sums
     # For each agent, sample a mate based on their probability distribution
     for i in range(pop_size):
         # Get the probability distribution for agent i

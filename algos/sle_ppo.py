@@ -681,7 +681,7 @@ class SLE_MTPPO():
     
     def logging(self, y, y_tasks, z, z_tasks, eval_fitness, eval_sr, eval_sr_tasks):
         
-        path_to_exp = f"./logs/{self.name}_{self.num_tasks}tasks_{self.pop_size}agents_{self.batch_size}_{self.total_episodes}_{date.today()}"
+        path_to_exp = f"./logs/{self.name}_{self.num_tasks}tasks_{self.pop_size}agents_{self.batch_size}_{self.total_episodes}_{date.today()}/{self.seed}"
         os.makedirs(path_to_exp, exist_ok=True)
         np.save(f"{path_to_exp}/training_returns.npy", np.array(y))  # [total_epi, pop_size]
         np.save(f"{path_to_exp}/training_tasks_return.npy", np.array(y_tasks))  # [total_epi, pop_size, num_tasks]

@@ -7,15 +7,15 @@ def training(config, algo):
         x, y, x_eval, y_eval, sr, sr_eval, tasks_sr = algo.train()
 
         # logging
-        path_to_exp = f"./logs/{algo.name}_{algo.num_tasks}_{config['batch_size']}_{config['epoch_opt']}_{config['total_episodes']}_{date.today()}"
+        path_to_exp = f"./logs/{algo.name}_{algo.num_tasks}_{config['batch_size']}_{config['epoch_opt']}_{config['total_episodes']}_{date.today()}/seed{algo.seed}"
         os.makedirs(path_to_exp, exist_ok=True)
-        os.makedirs(f"{path_to_exp}/seed{algo.seed}", exist_ok=True)
-        algo.save(f"{path_to_exp}/seed{algo.seed}/seed{algo.seed}.pt")
-        np.save(f"{path_to_exp}/seed{algo.seed}/train_returns_seed{algo.seed}.npy", np.array(y))
-        np.save(f"{path_to_exp}/seed{algo.seed}/eval_returns_seed{algo.seed}.npy", np.array(y_eval))
-        np.save(f"{path_to_exp}/seed{algo.seed}/sr_seed{algo.seed}.npy", np.array(sr))
-        np.save(f"{path_to_exp}/seed{algo.seed}/sr_eval_seed{algo.seed}.npy", np.array(sr_eval))
-        np.save(f"{path_to_exp}/seed{algo.seed}/tasks_sr_seed{algo.seed}.npy", np.array(tasks_sr))
+        os.makedirs(f"{path_to_exp}/", exist_ok=True)
+        algo.save(f"{path_to_exp}/seed{algo.seed}.pt")
+        np.save(f"{path_to_exp}/train_returns_seed{algo.seed}.npy", np.array(y))
+        np.save(f"{path_to_exp}/eval_returns_seed{algo.seed}.npy", np.array(y_eval))
+        np.save(f"{path_to_exp}/sr_seed{algo.seed}.npy", np.array(sr))
+        np.save(f"{path_to_exp}/sr_eval_seed{algo.seed}.npy", np.array(sr_eval))
+        np.save(f"{path_to_exp}/tasks_sr_seed{algo.seed}.npy", np.array(tasks_sr))
         return x, y, x_eval, y_eval, sr, sr_eval
 
     if algo.name == 'sle-mtppo':

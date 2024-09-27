@@ -94,7 +94,9 @@ def run_seeds(seeds):
 
 class MultiTaskEnv():
     def __init__(self, seed):
-        self.tasks = create_metaworld(seed)[0,5,8]
+        #self.tasks = create_metaworld(seed)
+        self.tasks = [create_metaworld(seed)[i] for i in [0,5,8]]
+        print(self.tasks)
         self.current_task = None
         self.observation_space = self.tasks[0].observation_space
         self.action_space = self.tasks[0].action_space
@@ -114,7 +116,7 @@ class MultiTaskEnv():
 
 if __name__ == "__main__":
     """ALGO PARAMS"""
-    config = {
+    config_mtppo = {
         'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"), #"cuda" if torch.cuda.is_available() else "cpu" 
         'continuous': True,
         'normalize_states': True,
@@ -133,6 +135,29 @@ if __name__ == "__main__":
         'epoch_finetune': 8,
         'epoch_opt': 16,
         'total_episodes': 200,
+        'hidden_size': 512,
+        'lr': 0.0005
+    }
+
+    config = {
+        'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"), #"cuda" if torch.cuda.is_available() else "cpu" 
+        'continuous': True,
+        'normalize_states': True,
+        'normalize_values': False,
+        'normalize_rewards': True,
+        'pop_size': 3,
+        'ent_coef': 5e-3,
+        'vf_coef': 0.1,
+        'lr_clip_range': 0.2,
+        'discount': 0.99,
+        'gae_lambda': 0.97,
+        'batch_size': 30000,
+        'max_path_length': 500,
+        'min_batch': 32, 
+        'epoch_merging': 4,
+        'epoch_finetune': 8,
+        'epoch_opt': 16,
+        'total_episodes': 100,
         'hidden_size': 512,
         'lr': 0.0005
     }
