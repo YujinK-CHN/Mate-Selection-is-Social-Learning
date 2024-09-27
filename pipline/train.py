@@ -19,15 +19,18 @@ def training(config, algo):
         return x, y, x_eval, y_eval, sr, sr_eval
 
     if algo.name == 'sle-mtppo':
-        x, y, sr, y_pop, fitness_pop, sr_pop, gen_mates = algo.evolve()
-        path_to_exp = f"./logs/{algo.name}_{algo.num_tasks}_{config['batch_size']}_{config['epoch_opt']}_{config['total_episodes']}_{date.today()}"
+        algo.evolve()
+        '''
+        path_to_exp = f"./logs/{algo.name}_{algo.num_tasks}tasks_{algo.pop_size}agents_{algo.batch_size}_{algo.total_episodes}_{date.today()}"
         os.makedirs(path_to_exp, exist_ok=True)
-        np.save(f"{path_to_exp}/algo_returns.npy", np.array(y))
-        np.save(f"{path_to_exp}/algo_sr.npy", np.array(sr))
-        np.save(f"{path_to_exp}/pop_returns.npy", np.array(y_pop))
-        np.save(f"{path_to_exp}/pop_sr.npy", np.array(sr_pop))
-        np.save(f"{path_to_exp}/pop_fitness.npy", np.array(fitness_pop))
-        np.save(f"{path_to_exp}/gen_mates.npy", np.array(gen_mates))
+        np.save(f"{path_to_exp}/training_returns.npy", np.array(y))  # [total_epi, pop_size]
+        np.save(f"{path_to_exp}/training_tasks_return.npy", np.array(y_tasks))  # [total_epi, pop_size, num_tasks]
+        np.save(f"{path_to_exp}/training_sr.npy", np.array(z))  # [total_epi, pop_size]
+        np.save(f"{path_to_exp}/training_tasks_sr.npy", np.array(z_tasks))  # [total_epi, pop_size, num_tasks]
+        np.save(f"{path_to_exp}/eval_returns.npy", np.array(eval_fitness))  # [total_epi, pop_size, num_tasks]
+        np.save(f"{path_to_exp}/eval_sr.npy", np.array(eval_sr))  # [total_epi, pop_size]
+        np.save(f"{path_to_exp}/eval_tasks_sr.npy", np.array(eval_sr_tasks))  # [total_epi, pop_size, num_tasks]
+        '''
 
     if algo.name == 'mtsac':
         x, y = algo.train()

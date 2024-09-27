@@ -147,7 +147,8 @@ class SLE_MTPPO():
                     episodic_return.append(step_return)
                     success_tracker_eval.update(i, if_success)
                 task_returns.append(np.mean(episodic_return))
-        return task_returns, success_tracker_eval.overall_success_rate()
+        task_success_rates = [success_tracker_eval.task_success_rate(i) for i in range(self.num_tasks)] 
+        return task_returns, success_tracker_eval.overall_success_rate(), task_success_rates
             
     def get_fitness(self, pop: list, norm_obs_list: list, norm_rew_list: list):
         print("Getting fitness for each agent of population...")
@@ -163,12 +164,14 @@ class SLE_MTPPO():
         ######
         policies_fitness = []
         success_rates = []
+        tasks_success_rate = []
         for i, agent in enumerate(pop):
-            fitness, sr = self.eval(self.env, agent, norm_obs_list[i], norm_rew_list[i])
-            policies_fitness.append(fitness)
-            success_rates.append(sr)
+            fitness, sr, tasks_sr= self.eval(self.env, agent, norm_obs_list[i], norm_rew_list[i])
+            policies_fitness.append(fitness) # [pop_size, num_tasks]
+            success_rates.append(sr) # [pop_size]
+            tasks_success_rate.append(tasks_sr) # [pop_size, num_tasks]
             print(f"Agent {i} evaluating complete.")
-        return np.asarray(policies_fitness), success_rates
+        return np.asarray(policies_fitness), success_rates, tasks_success_rate
 
 
     def select(self, pop: list, fitness: np.array) -> torch.nn.ModuleList:
@@ -206,13 +209,13 @@ class SLE_MTPPO():
 
     def evolve(self):
         x = []
+        y_tasks = []
         y = []
+        z_tasks = []
         z = []
-        sr = []
-        y_pop = []
-        sr_pop = []
-        fitness_pop = []
-        gen_mates = []
+        eval_fitness = []
+        eval_sr_tasks = []
+        eval_sr = []
         norm_obs_list = [NormalizeObservation(self.num_tasks) for _ in range(self.pop_size)]
         norm_rew_list = [NormalizeReward(self.num_tasks) for _ in range(self.pop_size)]
         # Generations, 4000
@@ -221,11 +224,10 @@ class SLE_MTPPO():
 
             # fitness func / evaluation: currently using rewards as fitness for each individual
             
-            fitness, success_rate = self.get_fitness(pop, norm_obs_list, norm_rew_list)
-            fitness_pop.append(fitness)
-            sr.append(np.max(success_rate))
-            sr_pop.append(success_rate)
-            self.fitness = fitness
+            fitness, success_rate, task_success_rates = self.get_fitness(pop, norm_obs_list, norm_rew_list)
+            eval_fitness.append(fitness) # [total_epi, pop_size, num_tasks]
+            eval_sr.append(success_rate) # [total_epi, pop_size]
+            eval_sr_tasks.append(task_success_rates) # [total_episodes, pop_size, num_tasks]
             print(f"Training episode {episode}")
             print(f"Evaluation return: {fitness}")
             print(f"Evaluation success rate: {success_rate}")
@@ -233,7 +235,6 @@ class SLE_MTPPO():
             # mate selection: for each actor in the pop, select one mate from the pop respect to the rule.
             mates, mate_indices = self.select(pop, fitness)
             print(f"Correspendent mates: {mate_indices}")
-            gen_mates.append(mate_indices)
 
             # for each individual,
             for i, policy in enumerate(pop):
@@ -257,17 +258,21 @@ class SLE_MTPPO():
             norm_rew_list = [res[5] for res in results]
             '''
             trained_pop = []
+            seeds_episodic_tasks_return = []
             seeds_episodic_return = []
             seeds_episodic_sr = []
+            seeds_episodic_tasks_sr = []
             seeds_loss = []
             norm_obs_list = []
             norm_rew_list = []
             print(f"Episode {episode} training begin...")
             for i, agent in enumerate(self.pop):
-                trained_agent, episodic_return, episodic_sr, loss, nb, nr = self.train(self.env, agent)
+                trained_agent, episodic_return, episodic_sr, episodic_tasks_sr, loss, nb, nr = self.train(self.env, agent)
                 trained_pop.append(trained_agent)
-                seeds_episodic_return.append(episodic_return)
-                seeds_episodic_sr.append(episodic_sr)
+                seeds_episodic_tasks_return.append(episodic_return) # [pop_size, num_tasks]
+                seeds_episodic_return.append(np.mean(episodic_return)) # [pop_size]
+                seeds_episodic_sr.append(episodic_sr) # [pop_size]
+                seeds_episodic_tasks_sr.append(episodic_tasks_sr) # [pop_size, num_tasks]
                 seeds_loss.append(loss)
                 norm_obs_list.append(nb)
                 norm_rew_list.append(nr)
@@ -285,16 +290,16 @@ class SLE_MTPPO():
             print("\n-------------------------------------------\n")
 
             x.append(episode)
-            y.append(np.max(seeds_episodic_return))
-            z.append(np.max(seeds_episodic_sr))
-            y_pop.append(seeds_episodic_return)
+            y_tasks.append(seeds_episodic_tasks_return)  # [total_epi, pop_size, num_tasks]
+            y.append(seeds_episodic_return)  # [total_epi, pop_size]
+            z_tasks.append(seeds_episodic_tasks_sr)  # [total_epi, pop_size, num_tasks]
+            z.append(seeds_episodic_sr)  # [total_epi, pop_size]
             
-            if episode % 10 == 0:
-                self.logging(y, sr, y_pop, fitness_pop, sr_pop, gen_mates)
-                plt.plot(x, z)
+            if episode % 1 == 0:
+                self.logging(y, y_tasks, z, z_tasks, eval_fitness, eval_sr, eval_sr_tasks)
+                plt.plot(x, np.max(z, axis=-1))
                 plt.pause(0.05)
         plt.show()
-        return x, y, sr, y_pop, fitness_pop, sr_pop, gen_mates
 
 
     def train(self, env, policy):
@@ -311,9 +316,9 @@ class SLE_MTPPO():
             compress_final_linear(policy.shared_layers[-1], important_indices2)
         )
         print("Finished compressing big agent. Start finetuning...")
-        policy, mean_episodic_return, episodic_success_rate, loss, norm_obs, norm_rew = self.train_finetune_stage(env, policy)
+        policy, episodic_return, episodic_sr, episodic_tasks_sr, loss, norm_obs, norm_rew = self.train_finetune_stage(env, policy)
                 
-        return policy, mean_episodic_return, episodic_success_rate, loss, norm_obs, norm_rew # a tuple of 6
+        return policy, episodic_return, episodic_sr, episodic_tasks_sr, loss, norm_obs, norm_rew # a tuple of 7
                 
 
     def train_merging_stage(self, env, policy):
@@ -669,21 +674,22 @@ class SLE_MTPPO():
                 loss.backward()
                 nn.utils.clip_grad_norm_(policy.parameters(), self.max_grad_norm)
                 opt.step()
-        
-        return policy, np.mean(task_returns), success_tracker.overall_success_rate(), loss.item(), norm_obs, norm_rew
+        task_success_rates = [success_tracker.task_success_rate(i) for i in range(self.num_tasks)]
+        return policy, task_returns, success_tracker.overall_success_rate(), task_success_rates, loss.item(), norm_obs, norm_rew
+                #       [num_tasks], 1, [num_tasks]...
 
-
-    def save(self, path):
-        fitness = torch.sum(self.fitness, dim=-1)
-        torch.save(self.pop[torch.argmax(fitness, dim=-1)].state_dict(), path)
     
-    def logging(self, y, sr, y_pop, fitness_pop, sr_pop, gen_mates):
+    def logging(self, y, y_tasks, z, z_tasks, eval_fitness, eval_sr, eval_sr_tasks):
         
-        path_to_exp = f"./logs/{self.name}_{self.num_tasks}_{self.batch_size}_{self.epoch_opt}_{self.total_episodes}_{date.today()}"
+        path_to_exp = f"./logs/{self.name}_{self.num_tasks}tasks_{self.pop_size}agents_{self.batch_size}_{self.total_episodes}_{date.today()}"
         os.makedirs(path_to_exp, exist_ok=True)
-        np.save(f"{path_to_exp}/algo_returns.npy", np.array(y))
-        np.save(f"{path_to_exp}/algo_sr.npy", np.array(sr))
-        np.save(f"{path_to_exp}/pop_returns.npy", np.array(y_pop))
-        np.save(f"{path_to_exp}/pop_sr.npy", np.array(sr_pop))
-        np.save(f"{path_to_exp}/pop_fitness.npy", np.array(fitness_pop))
-        np.save(f"{path_to_exp}/gen_mates.npy", np.array(gen_mates))
+        np.save(f"{path_to_exp}/training_returns.npy", np.array(y))  # [total_epi, pop_size]
+        np.save(f"{path_to_exp}/training_tasks_return.npy", np.array(y_tasks))  # [total_epi, pop_size, num_tasks]
+        np.save(f"{path_to_exp}/training_sr.npy", np.array(z))  # [total_epi, pop_size]
+        np.save(f"{path_to_exp}/training_tasks_sr.npy", np.array(z_tasks))  # [total_epi, pop_size, num_tasks]
+        np.save(f"{path_to_exp}/eval_returns.npy", np.array(eval_fitness))  # [total_epi, pop_size, num_tasks]
+        np.save(f"{path_to_exp}/eval_sr.npy", np.array(eval_sr))  # [total_epi, pop_size]
+        np.save(f"{path_to_exp}/eval_tasks_sr.npy", np.array(eval_sr_tasks))  # [total_epi, pop_size, num_tasks]
+        for i, agent in enumerate(self.pop):
+            os.makedirs(f"{path_to_exp}/pop", exist_ok=True)
+            torch.save(agent.state_dict(), f"{path_to_exp}/pop/agent{i}.pt")
