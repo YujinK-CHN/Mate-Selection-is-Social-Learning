@@ -92,7 +92,7 @@ class SLE_MTPPO():
         self.num_tasks = len(env.tasks)
 
         # GA hyperparameters
-        self.mutation_rate = 0.003
+        self.mutation_rate = 0.03
         self.mutation_mean = 0.0
         self.mutation_std = 0.01
         self.fitness = None
