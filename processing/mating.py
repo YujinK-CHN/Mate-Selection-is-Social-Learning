@@ -62,13 +62,12 @@ def sample_mates(pop, prob_matrix):
     # Step 3: Normalize rows to ensure valid probability distributions
     row_sums = bidirectional_prob_matrix.sum(dim=1, keepdim=True)
     bidirectional_prob_matrix = bidirectional_prob_matrix / row_sums
+    print("Prob matrix: \n", bidirectional_prob_matrix)
     # For each agent, sample a mate based on their probability distribution
     for i in range(pop_size):
-        # Get the probability distribution for agent i
-        prob_dist = prob_matrix[i]
         
         # Sample a mate index based on this distribution
-        mate = torch.multinomial(prob_dist, 1).item()
+        mate = torch.multinomial(bidirectional_prob_matrix[i], 1).item()
         
         mates.append(pop[mate])
         mate_indices.append(mate)

@@ -178,7 +178,6 @@ class SLE_MTPPO():
         score_matrix = pairwise_scores(torch.from_numpy(fitness))
         prob_matrix = probability_distribution(score_matrix)
         print("Score matrix: \n", score_matrix)
-        print("Prob matrix: \n", prob_matrix)
         mates, mate_indices = sample_mates(pop, prob_matrix)
         return mates, mate_indices
 
