@@ -8,6 +8,8 @@ from itertools import chain
 from processing.batching import batchify, batchify_obs, unbatchify
 from policies.multitask_policy import MultiTaskPolicy
 from processing.normalizer import NormalizeObservation, NormalizeReward
+import os
+from datetime import date
 
 class MultiTaskSuccessTracker:
     def __init__(self, num_tasks):
@@ -293,22 +295,24 @@ class MTPPO():
             print(f"Clip Fraction: {np.mean(clip_fracs)}")
             print(f"Explained Variance: {explained_var.item()}")
             print("\n-------------------------------------------\n")
-            if episode == 1 or episode % 10 == 0:
-                eval_return, mean_success_rate = self.eval(self.policy, norm_obs)
-                x_eval.append(episode)
-                y_eval.append(np.mean(eval_return))
-                sr_eval.append(mean_success_rate)
-                print(f"Evaluating episode {episode}")
-                print(f"Evaluating seed {self.seed}")
-                print(f"Evaluation Return: {eval_return}")
-                print(f"Evaluation Mean Return: {np.mean(eval_return)}")
-                print(f"Evaluation success rate: {mean_success_rate}")
-                print("\n-------------------------------------------\n")
+            
+            eval_return, mean_success_rate = self.eval(self.policy, norm_obs)
+            x_eval.append(episode)
+            y_eval.append(np.mean(eval_return))
+            sr_eval.append(mean_success_rate)
+            print(f"Evaluating episode {episode}")
+            print(f"Evaluating seed {self.seed}")
+            print(f"Evaluation Return: {eval_return}")
+            print(f"Evaluation Mean Return: {np.mean(eval_return)}")
+            print(f"Evaluation success rate: {mean_success_rate}")
+            print("\n-------------------------------------------\n")
 
             x.append(episode)
             y.append(np.mean(task_returns))
             sr.append(success_tracker.overall_success_rate())
-            
+
+            if episode % 1 == 0:
+                self.logging(y, y_eval, sr, sr_eval, tasks_sr)
             if episode % 10 == 0:
                 plt.plot(x, sr)
                 #plt.plot(x_eval, sr_eval)
@@ -371,7 +375,15 @@ class MTPPO():
                 task_returns.append(np.mean(episodic_return))
         return task_returns, success_tracker_eval.overall_success_rate()
 
-    def save(self, path):
-        torch.save(self.policy.state_dict(), path)
-
-
+    
+    def logging(self, y, y_eval, sr, sr_eval, tasks_sr):
+          
+        path_to_exp = f"./logs/{self.name}_{self.num_tasks}_{self.batch_size}_{self.epoch_opt}_{self.total_episodes}_{date.today()}/{self.seed}"
+        os.makedirs(path_to_exp, exist_ok=True)
+        torch.save(self.policy.state_dict(), f"{path_to_exp}/{self.seed}.pt")
+        np.save(f"{path_to_exp}/train_returns_{self.seed}.npy", np.array(y))
+        np.save(f"{path_to_exp}/eval_returns_{self.seed}.npy", np.array(y_eval))
+        np.save(f"{path_to_exp}/sr_{self.seed}.npy", np.array(sr))
+        np.save(f"{path_to_exp}/sr_eval_{self.seed}.npy", np.array(sr_eval))
+        np.save(f"{path_to_exp}/tasks_sr_{self.seed}.npy", np.array(tasks_sr))
+        

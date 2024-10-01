@@ -6,7 +6,7 @@ def training(config, algo):
     if algo.name == 'mtppo':
         x, y, x_eval, y_eval, sr, sr_eval, tasks_sr = algo.train()
 
-        # logging
+        '''
         path_to_exp = f"./logs/{algo.name}_{algo.num_tasks}_{config['batch_size']}_{config['epoch_opt']}_{config['total_episodes']}_{date.today()}/seed{algo.seed}"
         os.makedirs(path_to_exp, exist_ok=True)
         os.makedirs(f"{path_to_exp}/", exist_ok=True)
@@ -16,7 +16,8 @@ def training(config, algo):
         np.save(f"{path_to_exp}/sr_seed{algo.seed}.npy", np.array(sr))
         np.save(f"{path_to_exp}/sr_eval_seed{algo.seed}.npy", np.array(sr_eval))
         np.save(f"{path_to_exp}/tasks_sr_seed{algo.seed}.npy", np.array(tasks_sr))
-        return x, y, x_eval, y_eval, sr, sr_eval
+        '''
+        return x, y, x_eval, y_eval, sr, sr_eval, tasks_sr
 
     if algo.name == 'sle-mtppo':
         algo.evolve()
