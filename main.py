@@ -193,5 +193,5 @@ if __name__ == "__main__":
     #run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
     #training(config, seeds_ppo[1])
-    training(config, SLE_MTPPO(MultiTaskEnv(seeds[0]), config))
+    training(config, SLE_MTPPO(MultiTaskEnv(seeds[2]), config))
     
