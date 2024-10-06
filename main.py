@@ -187,11 +187,11 @@ if __name__ == "__main__":
     
 
     """ ENV SETUP """
-    # [0] 788 [1] 861 [2] 82 [3] 530
+    # [0] 788 [1] 861 [2] 82 [3] 530 [4] 995 [5]
     seeds = random_seeds()
     #seeds_ppo = seeding('mtppo', seeds, config)
     #run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
     #training(config, seeds_ppo[1])
-    training(config, SLE_MTPPO(MultiTaskEnv(seeds[3]), config))
+    training(config, SLE_MTPPO(MultiTaskEnv(seeds[5]), config))
     
