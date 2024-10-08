@@ -28,7 +28,7 @@ def create_metaworld(seed):
     return training_envs
 
 def random_seeds(min=0, max=1024, num_seeds = 6):
-     random.seed(0)
+     random.seed(42) # 0, 42
      seeds = [random.randint(min, max) for _ in range(num_seeds)]
      return seeds
 
@@ -187,11 +187,12 @@ if __name__ == "__main__":
     
 
     """ ENV SETUP """
-    # [0] 788 [1] 861 [2] 82 [3] 530 [4] 995 [5]
+    # Random seed(0): [0] 788x [1] 861 [2] 82 [3] 530 [4] 995x [5] 829
+    # Random seed(42): [0]  [1]  [2]  [3]  [4]  [5]
     seeds = random_seeds()
     #seeds_ppo = seeding('mtppo', seeds, config)
     #run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
     #training(config, seeds_ppo[1])
-    training(config, SLE_MTPPO(MultiTaskEnv(seeds[5]), config))
+    training(config, SLE_MTPPO(MultiTaskEnv(seeds[0]), config))
     
