@@ -76,7 +76,7 @@ date2 = '2024-10-09' #['2024-09-15', '2024-10-01', '2024-10-02', '2024-10-03', '
 sr_sle = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_30000_100_{date1}/{seed}(done)/training_sr.npy")
 sr_eval_sle = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_30000_100_{date1}/{seed}(done)/eval_sr.npy")
 sr = np.load(f"logs/mtppo_{MT}_30000_16_200_{date2}/{seed}(done)/sr_{seed}.npy")
-sr_eval = np.load(f"logs/mtppo_{MT}_30000_16_200_{date}/{seed}(done)/sr_eval_{seed}.npy")
+sr_eval = np.load(f"logs/mtppo_{MT}_30000_16_200_{date2}/{seed}(done)/sr_eval_{seed}.npy")
 
 plt.plot(np.array(x1)/100, np.max(sr_eval_sle, axis=-1), color='blue', label='SLE (ours)')
 plt.plot(np.array(x2)/200, sr, color='green', label='MTPPO')
