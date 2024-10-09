@@ -14,8 +14,8 @@ import numpy as np
 x1 = [i for i in range(100)]
 MT = 3
 POP = 3
-seed = [861, 82, 530]
-date = ['2024-09-29', '2024-10-04', '2024-10-06']
+seed = [861, 82, 530, 829]
+date = ['2024-09-29', '2024-10-04', '2024-10-06', '2024-10-08']
 seeds_sr_eval_sle = []
 seeds_sr_sle = []
 for i in range(len(seed)):
@@ -34,7 +34,7 @@ for i in range(len(seed)):
 x2 = [i for i in range(200)]
 MT = 3
 POP = 3
-seed = [861, 82, 530]
+seed = [861, 82, 530, 829]
 date = ['2024-10-01', '2024-10-02', '2024-10-03']
 seeds_sr_eval = []
 seeds_sr = []
