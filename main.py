@@ -188,7 +188,7 @@ if __name__ == "__main__":
 
     """ ENV SETUP """
     # Random seed(0): [0] 788x [1] 861 [2] 82 [3] 530 [4] 995x [5] 829
-    # Random seed(42): [0] 228x [1]  [2]  [3]  [4]  [5]
+    # Random seed(42): [0] 228x [1] 51 [2]  [3]  [4]  [5]
     seeds = random_seeds()
     #seeds_ppo = seeding('mtppo', seeds, config)
     #run_seeds(seeds_ppo)
