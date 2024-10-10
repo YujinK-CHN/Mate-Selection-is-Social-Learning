@@ -21,8 +21,9 @@ df = pd.DataFrame(data)
 
 MT = 3
 POP = 3
-seed = [861, 82, 530, 829]
-date = ['2024-09-29', '2024-10-04', '2024-10-06', '2024-10-08']
+###### SLE
+seed = [861, 82, 530, 995]
+date = ['2024-09-29','2024-10-04', '2024-10-06', '2024-10-07']
 seeds_sr_eval_sle = []
 seeds_sr_sle = []
 for i in range(len(seed)):
@@ -37,11 +38,9 @@ for i in range(len(seed)):
     seeds_sr_eval_sle.append(np.max(eval_sr, axis=-1))
     seeds_sr_sle.append(np.max(training_sr, axis=-1))
 
-
-MT = 3
-POP = 3
-seed_mtppo = [861, 82, 530, 829]
-date_mtppo = ['2024-10-01', '2024-10-02', '2024-10-03']
+###### MTPPO
+seed_mtppo = [861, 82, 530, 995]
+date_mtppo = ['2024-10-01', '2024-10-02', '2024-10-03', '2024-10-04']
 seeds_sr_eval = []
 seeds_sr = []
 for i in range(len(seed)):
@@ -54,22 +53,22 @@ for i in range(len(seed)):
     seeds_sr_eval.append(sr_eval)
     seeds_sr.append(sr)
 
-
-# Prepare the data for model 1
-epochs = np.tile(np.arange(1, 101), (4, 1))
+# Prepare the data for model 1 (100 epochs)
+epochs_model_sle = np.tile(np.arange(1, 101) / 100, (len(seed), 1))
 df_model_sle = pd.DataFrame({
-    'epoch': epochs.flatten(),
-    'metric': np.array(seeds_sr_eval_sle).flatten(),
-    'seed': np.repeat(np.arange(1, 5), 100),
-    'model': 'Model 1'
+    'epoch': epochs_model_sle.flatten(),
+    'metric': np.array(seeds_sr_sle).flatten(),
+    'seed': np.repeat(seed, 100),
+    'model': 'SLE (ours)'
 })
 
-# Prepare the data for model 2
+# Prepare the data for model 2 (200 epochs)
+epochs_model_mtppo = np.tile(np.arange(1, 201) / 200, (len(seed_mtppo), 1))
 df_model_mtppo = pd.DataFrame({
-    'epoch': epochs.flatten(),
+    'epoch': epochs_model_mtppo.flatten(),
     'metric': np.array(seeds_sr).flatten(),
-    'seed': np.repeat(np.arange(1, 5), 100),
-    'model': 'Model 2'
+    'seed': np.repeat(seed_mtppo, 200),
+    'model': 'MTPPO'
 })
 
 # Combine both models into one DataFrame
@@ -86,47 +85,40 @@ sns.lineplot(
 )
 
 # Customize the plot
-plt.title('Comparison of Neural Network Learning Results (100 Epochs, 4 Seeds)')
-plt.xlabel('Epoch')
-plt.ylabel('Performance Metric')
+plt.title(f'SLE (Ours) vs MTPPO Results (n={len(seed)} seeds)')
+plt.xlabel('Episodes')
+plt.ylabel('Success Rates')
 plt.legend(title='Model')
+#plt.show()
+
+
+def plot_for_model(seed_list, results, total_episodes, algo_name):
+    # Prepare the data (4 seeds, 100 epochs)
+    epochs = np.tile(np.arange(1, total_episodes+1), (results.shape[0], 1))
+    df_model = pd.DataFrame({
+        'epoch': epochs.flatten(),
+        'metric': results.flatten(),
+        'seed': np.repeat(seed_list, total_episodes)
+    })
+
+    # Plot each seed's results on the same figure using Seaborn
+    plt.figure(figsize=(10, 6))
+    sns.lineplot(
+        data=df_model,
+        x='epoch',
+        y='metric',
+        hue='seed',  # Different color for each seed
+        palette='tab10',  # Nice color palette
+        linewidth=1.5
+    )
+
+    # Customize the plot
+    plt.title(f'{algo_name} Performance Across Different Seeds')
+    plt.xlabel('Episodes')
+    plt.ylabel('Success Rates')
+    plt.legend(title='Seeds')
+    
+
+plot_for_model(seed, np.array(seeds_sr_sle), 100, 'SLE(ours)')
+plot_for_model(seed, np.array(seeds_sr), 200, 'MTPPO')
 plt.show()
-
-
-mean_seeds_sr = np.array(seeds_sr).sum(0) / len(seed)
-mean_seeds_sr_eval = np.array(seeds_sr_eval).sum(0) / len(seed)
-mean_seeds_sr_sle = np.array(seeds_sr_sle).sum(0) / len(seed)
-mean_seeds_sr_eval_sle = np.array(seeds_sr_eval_sle).sum(0) / len(seed)
-
-
-# Customize the plot
-plt.title('Comparison of Neural Network Learning Results (100 Epochs, 4 Seeds)')
-plt.xlabel('Epoch')
-plt.ylabel('Performance Metric')
-plt.legend(title='Model')
-plt.show()
-
-'''
-x1 = [i for i in range(100)]
-x2 = [i for i in range(200)]
-MT = 3
-POP = 3
-seed = 829 #[788, 861, 82, 530, 995, 829]
-date1 = '2024-10-09' #['2024-10-02', '2024-09-29', '2024-10-04', '2024-10-06', '2024-10-07', '2024-10-08']
-date2 = '2024-10-09' #['2024-09-15', '2024-10-01', '2024-10-02', '2024-10-03', '2024-10-04', '2024-10-08']
-
-#eval_returns = np.load(f"logs/mtppo_{MT}_30000_16_200_{date}/{seed}(done)/eval_returns_{seed}.npy")
-#train_returns = np.load(f"logs/mtppo_{MT}_30000_16_200_{date}/{seed}(done)/train_returns_{seed}.npy")
-
-sr_sle = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_30000_100_{date1}/{seed}(done)/training_sr.npy")
-sr_eval_sle = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_30000_100_{date1}/{seed}(done)/eval_sr.npy")
-sr = np.load(f"logs/mtppo_{MT}_30000_16_200_{date2}/{seed}(done)/sr_{seed}.npy")
-sr_eval = np.load(f"logs/mtppo_{MT}_30000_16_200_{date2}/{seed}(done)/sr_eval_{seed}.npy")
-
-plt.plot(np.array(x1)/100, np.max(sr_eval_sle, axis=-1), color='blue', label='SLE (ours)')
-plt.plot(np.array(x2)/200, sr, color='green', label='MTPPO')
-plt.title(f"Episode returns (train and eval) for seed {seed}")
-plt.xlabel("Episodes")
-plt.ylabel("Success Rate")
-plt.show()
-'''
