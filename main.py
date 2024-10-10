@@ -13,6 +13,28 @@ from algos.mtsac import MultiTaskSAC
 import metaworld
 import random
 
+def set_seed(seed):
+    """Set the random seed for reproducibility."""
+    # Set seed for PyTorch
+    torch.manual_seed(seed)
+    # Set seed for NumPy
+    np.random.seed(seed)
+    # Set seed for Python's random module
+    random.seed(seed)
+
+    # If using CUDA (for PyTorch)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)  # For all GPUs
+
+    # Disable deterministic behavior (if needed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+# Set the seed
+seed_value = 42
+set_seed(seed_value)
+
 #mt = metaworld.MT1('reach-v2', seed=0) # Construct the benchmark, sampling tasks
 mt = metaworld.MT10() # Construct the benchmark, sampling tasks
 
@@ -28,7 +50,6 @@ def create_metaworld(seed):
     return training_envs
 
 def random_seeds(min=0, max=1024, num_seeds = 6):
-     random.seed(42) # 0, 42
      seeds = [random.randint(min, max) for _ in range(num_seeds)]
      return seeds
 
