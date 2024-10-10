@@ -22,8 +22,8 @@ df = pd.DataFrame(data)
 MT = 3
 POP = 3
 ###### SLE
-seed = [861, 82, 530, 995]
-date = ['2024-09-29','2024-10-04', '2024-10-06', '2024-10-07']
+seed = [861, 82, 530, 995, 829]
+date = ['2024-09-29', '2024-10-04', '2024-10-06', '2024-10-07', '2024-10-08']
 seeds_sr_eval_sle = []
 seeds_sr_sle = []
 for i in range(len(seed)):
@@ -39,8 +39,8 @@ for i in range(len(seed)):
     seeds_sr_sle.append(np.max(training_sr, axis=-1))
 
 ###### MTPPO
-seed_mtppo = [861, 82, 530, 995]
-date_mtppo = ['2024-10-01', '2024-10-02', '2024-10-03', '2024-10-04']
+seed_mtppo = [861, 82, 530, 995, 829]
+date_mtppo = ['2024-10-01', '2024-10-02', '2024-10-03', '2024-10-04', '2024-10-08']
 seeds_sr_eval = []
 seeds_sr = []
 for i in range(len(seed)):
