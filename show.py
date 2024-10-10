@@ -1,4 +1,6 @@
 import torch
+import pandas as pd
+import seaborn as sns
 from processing.batching import batchify, batchify_obs, unbatchify
 
 from policies.hier_policy_prompt import HierPolicy_prompt
@@ -8,10 +10,15 @@ from policies.multitask_policy import MultiTaskPolicy
 import matplotlib.pyplot as plt
 
 import numpy as np
-
-
 '''
-x1 = [i for i in range(100)]
+data = {
+    'epoch': ,  # epochs repeated for each seed
+    'metric': ,  # performance metric for each seed
+    'seed': ,  # different seeds
+}
+df = pd.DataFrame(data)
+'''
+
 MT = 3
 POP = 3
 seed = [861, 82, 530, 829]
@@ -31,34 +38,72 @@ for i in range(len(seed)):
     seeds_sr_sle.append(np.max(training_sr, axis=-1))
 
 
-x2 = [i for i in range(200)]
 MT = 3
 POP = 3
-seed = [861, 82, 530, 829]
-date = ['2024-10-01', '2024-10-02', '2024-10-03']
+seed_mtppo = [861, 82, 530, 829]
+date_mtppo = ['2024-10-01', '2024-10-02', '2024-10-03']
 seeds_sr_eval = []
 seeds_sr = []
 for i in range(len(seed)):
-    eval_returns = np.load(f"logs/mtppo_{MT}_30000_16_200_{date[i]}/{seed[i]}(done)/eval_returns_{seed[i]}.npy")
-    train_returns = np.load(f"logs/mtppo_{MT}_30000_16_200_{date[i]}/{seed[i]}(done)/train_returns_{seed[i]}.npy")
-    sr_eval = np.load(f"logs/mtppo_{MT}_30000_16_200_{date[i]}/{seed[i]}(done)/sr_eval_{seed[i]}.npy")
-    sr = np.load(f"logs/mtppo_{MT}_30000_16_200_{date[i]}/{seed[i]}(done)/sr_{seed[i]}.npy")
-    tasks_sr = np.load(f"logs/mtppo_{MT}_30000_16_200_{date[i]}/{seed[i]}(done)/tasks_sr_{seed[i]}.npy")
+    eval_returns = np.load(f"logs/mtppo_{MT}_30000_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/eval_returns_{seed_mtppo[i]}.npy")
+    train_returns = np.load(f"logs/mtppo_{MT}_30000_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/train_returns_{seed_mtppo[i]}.npy")
+    sr_eval = np.load(f"logs/mtppo_{MT}_30000_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/sr_eval_{seed_mtppo[i]}.npy")
+    sr = np.load(f"logs/mtppo_{MT}_30000_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/sr_{seed_mtppo[i]}.npy")
+    tasks_sr = np.load(f"logs/mtppo_{MT}_30000_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/tasks_sr_{seed_mtppo[i]}.npy")
 
     seeds_sr_eval.append(sr_eval)
     seeds_sr.append(sr)
+
+
+# Prepare the data for model 1
+epochs = np.tile(np.arange(1, 101), (4, 1))
+df_model_sle = pd.DataFrame({
+    'epoch': epochs.flatten(),
+    'metric': np.array(seeds_sr_eval_sle).flatten(),
+    'seed': np.repeat(np.arange(1, 5), 100),
+    'model': 'Model 1'
+})
+
+# Prepare the data for model 2
+df_model_mtppo = pd.DataFrame({
+    'epoch': epochs.flatten(),
+    'metric': np.array(seeds_sr).flatten(),
+    'seed': np.repeat(np.arange(1, 5), 100),
+    'model': 'Model 2'
+})
+
+# Combine both models into one DataFrame
+df_combined = pd.concat([df_model_sle, df_model_mtppo])
+
+# Plot with Seaborn (comparison between models)
+plt.figure(figsize=(10, 6))
+sns.lineplot(
+    data=df_combined,
+    x='epoch',
+    y='metric',
+    hue='model',  # Different colors for each model
+    ci='sd'  # Standard deviation as shaded area
+)
+
+# Customize the plot
+plt.title('Comparison of Neural Network Learning Results (100 Epochs, 4 Seeds)')
+plt.xlabel('Epoch')
+plt.ylabel('Performance Metric')
+plt.legend(title='Model')
+plt.show()
+
 
 mean_seeds_sr = np.array(seeds_sr).sum(0) / len(seed)
 mean_seeds_sr_eval = np.array(seeds_sr_eval).sum(0) / len(seed)
 mean_seeds_sr_sle = np.array(seeds_sr_sle).sum(0) / len(seed)
 mean_seeds_sr_eval_sle = np.array(seeds_sr_eval_sle).sum(0) / len(seed)
 
-plt.plot(np.array(x1)/100, mean_seeds_sr_eval_sle, color='blue', label='SLE (ours)')
-plt.plot(np.array(x2)/200, mean_seeds_sr, color='green', label='MTPPO')
-plt.title(f"Mean episodic returns for seeds {seed}")
-plt.xlabel("Episodes")
-plt.ylabel("Success Rate")
-plt.legend()
+
+# Customize the plot
+plt.title('Comparison of Neural Network Learning Results (100 Epochs, 4 Seeds)')
+plt.xlabel('Epoch')
+plt.ylabel('Performance Metric')
+plt.legend(title='Model')
 plt.show()
 
 '''
@@ -84,3 +129,4 @@ plt.title(f"Episode returns (train and eval) for seed {seed}")
 plt.xlabel("Episodes")
 plt.ylabel("Success Rate")
 plt.show()
+'''
