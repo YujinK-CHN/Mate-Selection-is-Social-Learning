@@ -57,7 +57,7 @@ for i in range(len(seed)):
 epochs_model_sle = np.tile(np.arange(1, 101) / 100, (len(seed), 1))
 df_model_sle = pd.DataFrame({
     'epoch': epochs_model_sle.flatten(),
-    'metric': np.array(seeds_sr_sle).flatten(),
+    'metric': np.array(seeds_sr_eval_sle).flatten(),
     'seed': np.repeat(seed, 100),
     'model': 'SLE (ours)'
 })
@@ -119,6 +119,6 @@ def plot_for_model(seed_list, results, total_episodes, algo_name):
     plt.legend(title='Seeds')
     
 
-plot_for_model(seed, np.array(seeds_sr_sle), 100, 'SLE(ours)')
+plot_for_model(seed, np.array(seeds_sr_eval_sle), 100, 'SLE(ours)')
 plot_for_model(seed, np.array(seeds_sr), 200, 'MTPPO')
 plt.show()
