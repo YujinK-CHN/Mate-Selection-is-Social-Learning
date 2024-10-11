@@ -53,44 +53,48 @@ for i in range(len(seed)):
     seeds_sr_eval.append(sr_eval)
     seeds_sr.append(sr)
 
-# Prepare the data for model 1 (100 epochs)
-epochs_model_sle = np.tile(np.arange(1, 101) / 100, (len(seed), 1))
-df_model_sle = pd.DataFrame({
-    'epoch': epochs_model_sle.flatten(),
-    'metric': np.array(seeds_sr_eval_sle).flatten(),
-    'seed': np.repeat(seed, 100),
-    'model': 'SLE (ours)'
-})
 
-# Prepare the data for model 2 (200 epochs)
-epochs_model_mtppo = np.tile(np.arange(1, 201) / 200, (len(seed_mtppo), 1))
-df_model_mtppo = pd.DataFrame({
-    'epoch': epochs_model_mtppo.flatten(),
-    'metric': np.array(seeds_sr).flatten(),
-    'seed': np.repeat(seed_mtppo, 200),
-    'model': 'MTPPO'
-})
 
-# Combine both models into one DataFrame
-df_combined = pd.concat([df_model_sle, df_model_mtppo])
+def plot_general_performance(seed_indices):
+    # Prepare the data for model 1 (100 epochs)
+    print(np.array(seeds_sr_eval_sle)[seed_indices].shape)
+    print(np.array(seed)[seed_indices])
+    epochs_model_sle = np.tile(np.arange(1, 101) / 100, (len(seed_indices), 1))
+    df_model_sle = pd.DataFrame({
+        'epoch': epochs_model_sle.flatten(),
+        'metric': np.array(seeds_sr_eval_sle)[seed_indices].flatten(),
+        'seed': np.repeat(np.array(seed)[seed_indices], 100),
+        'model': 'SLE (ours)'
+    })
 
-# Plot with Seaborn (comparison between models)
-plt.figure(figsize=(10, 6))
-sns.lineplot(
-    data=df_combined,
-    x='epoch',
-    y='metric',
-    hue='model',  # Different colors for each model
-    ci='sd'  # Standard deviation as shaded area
-)
+    # Prepare the data for model 2 (200 epochs)
+    epochs_model_mtppo = np.tile(np.arange(1, 201) / 200, (len(seed_indices), 1))
+    df_model_mtppo = pd.DataFrame({
+        'epoch': epochs_model_mtppo.flatten(),
+        'metric': np.array(seeds_sr)[seed_indices].flatten(),
+        'seed': np.repeat(np.array(seed_mtppo)[seed_indices], 200),
+        'model': 'MTPPO'
+    })
 
-# Customize the plot
-plt.title(f'SLE (Ours) vs MTPPO Results (n={len(seed)} seeds)')
-plt.xlabel('Episodes')
-plt.ylabel('Success Rates')
-plt.legend(title='Model')
-#plt.show()
+    # Combine both models into one DataFrame
+    df_combined = pd.concat([df_model_sle, df_model_mtppo])
 
+    # Plot with Seaborn (comparison between models)
+    plt.figure(figsize=(10, 6))
+    sns.lineplot(
+        data=df_combined,
+        x='epoch',
+        y='metric',
+        hue='model',  # Different colors for each model
+        ci='sd'  # Standard deviation as shaded area
+    )
+
+    # Customize the plot
+    plt.title(f'SLE (Ours) vs MTPPO Results (n={len(seed_indices)} seeds {np.array(seed)[seed_indices]})')
+    plt.xlabel('Episodes')
+    plt.ylabel('Success Rates')
+    plt.legend(title='Model')
+    #plt.show()
 
 def plot_for_model(seed_list, results, total_episodes, algo_name):
     epochs = np.tile(np.arange(1, total_episodes+1), (results.shape[0], 1))
@@ -117,7 +121,8 @@ def plot_for_model(seed_list, results, total_episodes, algo_name):
     plt.ylabel('Success Rates')
     plt.legend(title='Seeds')
     
-
-plot_for_model(seed, np.array(seeds_sr_eval_sle), 100, 'SLE(ours)')
-plot_for_model(seed, np.array(seeds_sr), 200, 'MTPPO')
+seed_indices = [0,1,2,3,4,5]
+plot_general_performance(seed_indices)
+plot_for_model(np.array(seed)[seed_indices], np.array(seeds_sr_sle)[seed_indices], 100, 'SLE(ours)')
+plot_for_model(np.array(seed)[seed_indices], np.array(seeds_sr)[seed_indices], 200, 'MTPPO')
 plt.show()
