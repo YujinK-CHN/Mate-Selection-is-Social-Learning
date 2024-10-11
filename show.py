@@ -22,8 +22,8 @@ df = pd.DataFrame(data)
 MT = 3
 POP = 3
 ###### SLE
-seed = [861, 82, 530, 995, 829]
-date = ['2024-09-29', '2024-10-04', '2024-10-06', '2024-10-07', '2024-10-08']
+seed = [861, 82, 530, 995, 829, 228]
+date = ['2024-09-29', '2024-10-04', '2024-10-06', '2024-10-07', '2024-10-08', '2024-10-11']
 seeds_sr_eval_sle = []
 seeds_sr_sle = []
 for i in range(len(seed)):
@@ -39,8 +39,8 @@ for i in range(len(seed)):
     seeds_sr_sle.append(np.max(training_sr, axis=-1))
 
 ###### MTPPO
-seed_mtppo = [861, 82, 530, 995, 829]
-date_mtppo = ['2024-10-01', '2024-10-02', '2024-10-03', '2024-10-04', '2024-10-08']
+seed_mtppo = [861, 82, 530, 995, 829, 228]
+date_mtppo = ['2024-10-01', '2024-10-02', '2024-10-03', '2024-10-04', '2024-10-08', '2024-10-09']
 seeds_sr_eval = []
 seeds_sr = []
 for i in range(len(seed)):
@@ -93,7 +93,6 @@ plt.legend(title='Model')
 
 
 def plot_for_model(seed_list, results, total_episodes, algo_name):
-    # Prepare the data (4 seeds, 100 epochs)
     epochs = np.tile(np.arange(1, total_episodes+1), (results.shape[0], 1))
     df_model = pd.DataFrame({
         'epoch': epochs.flatten(),
