@@ -6,12 +6,13 @@ from pipline.train import training
 from algos.ppo import PPO
 from algos.ippo import IPPO
 from algos.mappo import MAPPO
-from algos.mtppo2 import MTPPO
+from algos.mtppo import MTPPO
 from algos.sle_ppo import SLE_MTPPO
 from algos.mtsac import MultiTaskSAC
 
 import metaworld
 import random
+import time
 
 def set_seed(seed):
     """Set the random seed for reproducibility."""
@@ -27,12 +28,11 @@ def set_seed(seed):
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)  # For all GPUs
 
-    # Disable deterministic behavior (if needed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
 # Set the seed
-seed_value = 42
+seed_value = 0
 set_seed(seed_value)
 
 #mt = metaworld.MT1('reach-v2', seed=0) # Construct the benchmark, sampling tasks
@@ -49,7 +49,7 @@ def create_metaworld(seed):
         training_envs.append(env)
     return training_envs
 
-def random_seeds(min=0, max=1024, num_seeds = 6):
+def random_seeds(min=0, max=1024, num_seeds = 10):
      seeds = [random.randint(min, max) for _ in range(num_seeds)]
      return seeds
 
@@ -57,7 +57,6 @@ def seeding(algo_name, seeds, config):
         envs = []
         for seed in seeds:
             envs.append(MultiTaskEnv(seed))
-        print(envs[0].tasks)
         seeds = []
         if algo_name == 'mtppo':
             for env in envs:
@@ -116,7 +115,7 @@ def run_seeds(seeds):
 class MultiTaskEnv():
     def __init__(self, seed):
         #self.tasks = create_metaworld(seed)
-        self.tasks = [create_metaworld(seed)[i] for i in [0,5,8]]
+        self.tasks = create_metaworld(seed) # [create_metaworld(seed)[i] for i in [0,5,8]]
         print(self.tasks)
         self.current_task = None
         self.observation_space = self.tasks[0].observation_space
@@ -143,19 +142,16 @@ if __name__ == "__main__":
         'normalize_states': True,
         'normalize_values': False,
         'normalize_rewards': True,
-        'pop_size': 3,
         'ent_coef': 5e-3,
         'vf_coef': 0.1,
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
-        'batch_size': 30000,
+        'batch_size': 50000,
         'max_path_length': 500,
-        'min_batch': 32, 
-        'epoch_merging': 4,
-        'epoch_finetune': 8,
+        'min_batch': 32,
         'epoch_opt': 16,
-        'total_episodes': 200,
+        'total_episodes': 500,
         'hidden_size': 512,
         'lr': 0.0005
     }
@@ -172,13 +168,12 @@ if __name__ == "__main__":
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
-        'batch_size': 30000,
+        'batch_size': 50000,
         'max_path_length': 500,
         'min_batch': 32, 
         'epoch_merging': 4,
         'epoch_finetune': 8,
-        'epoch_opt': 16,
-        'total_episodes': 100,
+        'total_episodes': 200,
         'hidden_size': 512,
         'lr': 0.0005
     }
@@ -208,12 +203,16 @@ if __name__ == "__main__":
     
 
     """ ENV SETUP """
-    # Random seed(0): [0] 788x [1] 861 [2] 82 [3] 530 [4] 995 [5] 829
-    # Random seed(42): [0] 228x [1] 51 [2]  [3]  [4]  [5]
+    # Random Seed(0): [0] 788x [1] 861 [2] 82 [3] 530 [4] 995 [5] 829
+    # Random Seed(42): [0] 228 [1] 51 [2] 563 [3]  [4]  [5] 
     seeds = random_seeds()
-    #seeds_ppo = seeding('mtppo', seeds, config)
+    #seeds_ppo = seeding('mtppo', seeds, config_mtppo)
     #run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
-    #training(config, seeds_ppo[1])
+    #training(config_mtppo, seeds_ppo[3])
+    total_start_time = time.time()
     training(config, SLE_MTPPO(MultiTaskEnv(seeds[1]), config))
+    total_end_time = time.time()
+    total_duration = total_end_time - total_start_time
+    print(f"Total training runtime: {total_duration:.2f} seconds")
     

@@ -17,6 +17,8 @@ from policies.multitask_policy import MultiTaskPolicy
 
 from processing.normalizer import NormalizeObservation, NormalizeReward
 from processing.mating import pairwise_scores, probability_distribution, sample_mates
+import time
+
 
 class MultiTaskSuccessTracker:
     def __init__(self, num_tasks):
@@ -77,7 +79,6 @@ class SLE_MTPPO():
         self.max_cycles = config['max_path_length']
         self.pop_size = config['pop_size']
         self.total_episodes = config['total_episodes']
-        self.epoch_opt = config['epoch_opt']
         self.epoch_merging = config['epoch_merging']
         self.epoch_finetune = config['epoch_finetune']
         self.batch_size = config['batch_size']
@@ -215,10 +216,12 @@ class SLE_MTPPO():
         eval_fitness = []
         eval_sr_tasks = []
         eval_sr = []
+        runtimes = []
         norm_obs_list = [NormalizeObservation(self.num_tasks) for _ in range(self.pop_size)]
         norm_rew_list = [NormalizeReward(self.num_tasks) for _ in range(self.pop_size)]
         # Generations, 4000
         for episode in range(self.total_episodes):
+            episode_start_time = time.time()
             pop = copy.deepcopy(self.pop)
 
             # fitness func / evaluation: currently using rewards as fitness for each individual
@@ -280,12 +283,14 @@ class SLE_MTPPO():
             print("New population is generated!")
             ################################ Training ##################################
             
-            
+            episode_end_time = time.time()
+            episode_duration = episode_end_time - episode_start_time
             print(f"Episodic return: {seeds_episodic_return}")
             print(f"Episodic max return: {np.max(seeds_episodic_return)}")
             print(f"Episodic success rate: {seeds_episodic_sr}")
             print(f"Episodic max success rate: {np.max(seeds_episodic_sr)}")
             print(f"Episodic loss: {np.mean(seeds_loss)}")
+            print(f"Episodic runtime: {episode_duration}")
             print("\n-------------------------------------------\n")
 
             x.append(episode)
@@ -293,9 +298,10 @@ class SLE_MTPPO():
             y.append(seeds_episodic_return)  # [total_epi, pop_size]
             z_tasks.append(seeds_episodic_tasks_sr)  # [total_epi, pop_size, num_tasks]
             z.append(seeds_episodic_sr)  # [total_epi, pop_size]
+            runtimes.append(episode_duration)
             
             if episode % 1 == 0:
-                self.logging(y, y_tasks, z, z_tasks, eval_fitness, eval_sr, eval_sr_tasks)
+                self.logging(y, y_tasks, z, z_tasks, eval_fitness, eval_sr, eval_sr_tasks, runtimes)
                 plt.plot(x, np.max(z, axis=-1))
                 plt.pause(0.05)
         plt.show()
@@ -436,7 +442,7 @@ class SLE_MTPPO():
          
         rb_index = np.arange(rb_obs.shape[0])
         clip_fracs = []
-        for epoch in range(self.epoch_opt): # 4
+        for epoch in range(self.epoch_merging): # 4
             # shuffle the indices we use to access the data
             np.random.shuffle(rb_index)
                 
@@ -618,7 +624,7 @@ class SLE_MTPPO():
          
         rb_index = np.arange(rb_obs.shape[0])
         clip_fracs = []
-        for epoch in range(self.epoch_opt): # 4
+        for epoch in range(self.epoch_finetune): # 8
             # shuffle the indices we use to access the data
             np.random.shuffle(rb_index)
                 
@@ -678,7 +684,7 @@ class SLE_MTPPO():
                 #       [num_tasks], 1, [num_tasks]...
 
     
-    def logging(self, y, y_tasks, z, z_tasks, eval_fitness, eval_sr, eval_sr_tasks):
+    def logging(self, y, y_tasks, z, z_tasks, eval_fitness, eval_sr, eval_sr_tasks, runtimes):
         
         path_to_exp = f"./logs/{self.name}_{self.num_tasks}tasks_{self.pop_size}agents_{self.batch_size}_{self.total_episodes}_{date.today()}/{self.seed}"
         os.makedirs(path_to_exp, exist_ok=True)
@@ -689,6 +695,7 @@ class SLE_MTPPO():
         np.save(f"{path_to_exp}/eval_returns.npy", np.array(eval_fitness))  # [total_epi, pop_size, num_tasks]
         np.save(f"{path_to_exp}/eval_sr.npy", np.array(eval_sr))  # [total_epi, pop_size]
         np.save(f"{path_to_exp}/eval_tasks_sr.npy", np.array(eval_sr_tasks))  # [total_epi, pop_size, num_tasks]
+        np.save(f"{path_to_exp}/runtimes.npy", np.array(runtimes))
         for i, agent in enumerate(self.pop):
             os.makedirs(f"{path_to_exp}/pop", exist_ok=True)
             torch.save(agent.state_dict(), f"{path_to_exp}/pop/agent{i}.pt")
