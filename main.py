@@ -172,7 +172,7 @@ if __name__ == "__main__":
         'max_path_length': 500,
         'min_batch': 32, 
         'epoch_merging': 4,
-        'epoch_finetune': 8,
+        'epoch_finetune': 12,
         'total_episodes': 200,
         'hidden_size': 512,
         'lr': 0.0005
