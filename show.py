@@ -59,7 +59,7 @@ def plot_general_performance(seed_indices):
     # Prepare the data for model 1 (100 epochs)
     print(np.array(seeds_sr_eval_sle)[seed_indices].shape)
     print(np.array(seed)[seed_indices])
-    epochs_model_sle = np.tile(np.arange(1, 101), (len(seed_indices), 1))
+    epochs_model_sle = np.tile(np.arange(0, 100), (len(seed_indices), 1))
     epochs_sle = np.array([x * 6 for x in epochs_model_sle])
     df_model_sle = pd.DataFrame({
         'epoch': epochs_sle.flatten(),
@@ -69,7 +69,7 @@ def plot_general_performance(seed_indices):
     })
 
     # Prepare the data for model 2 (200 epochs)
-    epochs_model_mtppo = np.tile(np.arange(1, 201), (len(seed_indices), 1))
+    epochs_model_mtppo = np.tile(np.arange(0, 200), (len(seed_indices), 1))
     df_model_mtppo = pd.DataFrame({
         'epoch': epochs_model_mtppo.flatten(),
         'metric': np.array(seeds_sr)[seed_indices].flatten(),
