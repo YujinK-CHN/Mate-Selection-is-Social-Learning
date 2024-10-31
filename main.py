@@ -147,11 +147,11 @@ if __name__ == "__main__":
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
-        'batch_size': 50000,
+        'batch_size': 300000,
         'max_path_length': 500,
         'min_batch': 32,
         'epoch_opt': 16,
-        'total_episodes': 500,
+        'total_episodes': 200,
         'hidden_size': 512,
         'lr': 0.0005
     }
@@ -204,14 +204,14 @@ if __name__ == "__main__":
 
     """ ENV SETUP """
     # Random Seed(0): [0] 788x [1] 861 [2] 82 [3] 530 [4] 995 [5] 829
-    # Random Seed(42): [0] 228 [1] 51 [2] 563 [3]  [4]  [5] 
     seeds = random_seeds()
-    #seeds_ppo = seeding('mtppo', seeds, config_mtppo)
+    seeds_ppo = seeding('mtppo', seeds, config_mtppo)
     #run_seeds(seeds_ppo)
     #training(config_mtsac, mtsac2)
-    #training(config_mtppo, seeds_ppo[3])
+    
     total_start_time = time.time()
-    training(config, SLE_MTPPO(MultiTaskEnv(seeds[1]), config))
+    training(config_mtppo, seeds_ppo[1])
+    #training(config, SLE_MTPPO(MultiTaskEnv(seeds[1]), config))
     total_end_time = time.time()
     total_duration = total_end_time - total_start_time
     print(f"Total training runtime: {total_duration:.2f} seconds")

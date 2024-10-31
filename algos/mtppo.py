@@ -72,7 +72,6 @@ class MTPPO():
         self.critic_opt = optim.Adam(self.policy.critic.parameters(), lr=config['lr'], eps=1e-5)
 
         self.max_cycles = config['max_path_length']
-        self.pop_size = config['pop_size']
         self.total_episodes = config['total_episodes']
         self.epoch_opt = config['epoch_opt']
         self.batch_size = config['batch_size']
