@@ -16,6 +16,7 @@ from policies.centralized_policy import CentralizedPolicy
 from policies.multitask_policy import MultiTaskPolicy
 
 from processing.normalizer import NormalizeObservation, NormalizeReward
+#from processing.entropy_mating import bi_directional_score_matrix, probability_distribution, sample_mates
 from processing.mating import pairwise_scores, probability_distribution, sample_mates
 import time
 
@@ -73,6 +74,7 @@ class SLE_MTPPO():
         ]
 
         self.max_grad_norm = 0.5
+        self.eta = config['eta']
         self.normalize_states = config['normalize_states']
         self.normalize_values = config['normalize_values']
         self.normalize_rewards = config['normalize_rewards']
@@ -81,7 +83,8 @@ class SLE_MTPPO():
         self.total_episodes = config['total_episodes']
         self.epoch_merging = config['epoch_merging']
         self.epoch_finetune = config['epoch_finetune']
-        self.batch_size = config['batch_size']
+        self.batch_merging = config['batch_merging']
+        self.batch_finetune = config['batch_finetune']
         self.min_batch = config['min_batch']
         self.discount = config['discount']
         self.gae_lambda = config['gae_lambda']
@@ -136,6 +139,7 @@ class SLE_MTPPO():
 
                         success = info.get('success', 0.0)
                         if success != 0.0:
+                            #print("!!!!!!!!!!", i, epoch, step, success)
                             if_success = True
                             break
 
@@ -153,16 +157,20 @@ class SLE_MTPPO():
             
     def get_fitness(self, pop: list, norm_obs_list: list, norm_rew_list: list):
         print("Getting fitness for each agent of population...")
-        ######
+        
         '''
         envs = [copy.deepcopy(self.env) for _ in range(self.pop_size)]
-        pool = mp.Pool()
+        pool = mp.Pool(processes=self.pop_size)
         process_inputs = [(envs[i], pop[i], norm_obs_list[i], norm_rew_list[i]) for i in range(self.pop_size)]
         results = pool.starmap(self.eval, process_inputs)
-        policies_fitness = [res[0] for res in results]  # receive from multi-process
-        success_rates = [res[1] for res in results]  # receive from multi-process
+        policies_fitness = [res[0] for res in results] # [pop_size, num_tasks]
+        success_rates = [res[1] for res in results] # [pop_size]
+        tasks_success_rate = [res[2] for res in results] # [pop_size, num_tasks]
+        print(f"Agents evaluation complete.")
+        pool.close()
+        pool.join()
         '''
-        ######
+        
         policies_fitness = []
         success_rates = []
         tasks_success_rate = []
@@ -172,11 +180,13 @@ class SLE_MTPPO():
             success_rates.append(sr) # [pop_size]
             tasks_success_rate.append(tasks_sr) # [pop_size, num_tasks]
             print(f"Agent {i} evaluating complete.")
+        
         return np.asarray(policies_fitness), success_rates, tasks_success_rate
 
 
     def select(self, pop: list, fitness: np.array) -> torch.nn.ModuleList:
-        score_matrix = pairwise_scores(torch.from_numpy(fitness))
+        #score_matrix = bi_directional_score_matrix(torch.from_numpy(fitness), self.eta)
+        score_matrix = pairwise_scores(torch.from_numpy(fitness), self.eta)
         prob_matrix = probability_distribution(score_matrix)
         print("Score matrix: \n", score_matrix)
         mates, mate_indices = sample_mates(pop, prob_matrix)
@@ -219,7 +229,9 @@ class SLE_MTPPO():
         runtimes = []
         norm_obs_list = [NormalizeObservation(self.num_tasks) for _ in range(self.pop_size)]
         norm_rew_list = [NormalizeReward(self.num_tasks) for _ in range(self.pop_size)]
-        # Generations, 4000
+        
+        # Generations
+        mp.set_start_method('spawn')
         for episode in range(self.total_episodes):
             episode_start_time = time.time()
             pop = copy.deepcopy(self.pop)
@@ -248,16 +260,20 @@ class SLE_MTPPO():
             ################################ Training ##################################
             '''
             envs = [copy.deepcopy(self.env) for _ in range(self.pop_size)]
-            pool = mp.Pool()
+            pool = mp.Pool(processes=self.pop_size)
             process_inputs = [(envs[i], self.pop[i]) for i in range(self.pop_size)]
             results = pool.starmap(self.train, process_inputs)
 
-            self.pop = [res[0] for res in results] # receive from multi-process
-            seeds_episodic_return = [res[1] for res in results]  # receive from multi-process
-            seeds_episodic_sr = [res[2] for res in results]  # receive from multi-process
-            seeds_loss = [res[3] for res in results]  # receive from multi-process
-            norm_obs_list = [res[4] for res in results]
-            norm_rew_list = [res[5] for res in results]
+            self.pop = [res[0] for res in results] # new population
+            seeds_episodic_tasks_return = [res[1] for res in results]  # [pop_size, num_tasks]
+            seeds_episodic_return = np.mean(seeds_episodic_tasks_return, axis=-1) # [pop_size]
+            seeds_episodic_sr = [res[2] for res in results]  # [pop_size]
+            seeds_episodic_tasks_sr = [res[3] for res in results]  # [pop_size, num_tasks]
+            seeds_loss = [res[4] for res in results]
+            norm_obs_list = [res[5] for res in results]
+            norm_rew_list = [res[6] for res in results]
+            pool.close()
+            pool.join()
             '''
             trained_pop = []
             seeds_episodic_tasks_return = []
@@ -280,6 +296,7 @@ class SLE_MTPPO():
                 norm_rew_list.append(nr)
                 print(f"Agent {i} training complete.")
             self.pop = trained_pop
+            
             print("New population is generated!")
             ################################ Training ##################################
             
@@ -335,16 +352,16 @@ class SLE_MTPPO():
 
         policy.train()
         # clear memory
-        rb_obs = torch.zeros((self.batch_size, self.obs_shape + self.num_tasks)).to(self.device)
+        rb_obs = torch.zeros((self.batch_merging, self.obs_shape + self.num_tasks)).to(self.device)
         if self.continuous == True:
-            rb_actions = torch.zeros((self.batch_size, env.action_space.shape[0])).to(self.device)
+            rb_actions = torch.zeros((self.batch_merging, env.action_space.shape[0])).to(self.device)
         else:
-            rb_actions = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_logprobs = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_rewards = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_advantages = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_terms = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_values = torch.zeros((self.batch_size, 1)).to(self.device)
+            rb_actions = torch.zeros((self.batch_merging, 1)).to(self.device)
+        rb_logprobs = torch.zeros((self.batch_merging, 1)).to(self.device)
+        rb_rewards = torch.zeros((self.batch_merging, 1)).to(self.device)
+        rb_advantages = torch.zeros((self.batch_merging, 1)).to(self.device)
+        rb_terms = torch.zeros((self.batch_merging, 1)).to(self.device)
+        rb_values = torch.zeros((self.batch_merging, 1)).to(self.device)
         
         '''
         # learning Rate annealing
@@ -366,7 +383,7 @@ class SLE_MTPPO():
             for i, task in enumerate(env.tasks): # 10
                 episodic_return = []
                     
-                for epoch in range(int((self.batch_size / self.num_tasks) / self.max_cycles)): # 10         
+                for epoch in range(int((self.batch_merging / self.num_tasks) / self.max_cycles)): # 10         
 
                     next_obs, infos = task.reset(self.seed)
                     if self.normalize_states:
@@ -398,6 +415,7 @@ class SLE_MTPPO():
 
                         success = info.get('success', 0.0)
                         if success != 0.0:
+                            #print("!!!!!!!!!!", i, epoch, step, success)
                             if_success = True
                             term = 1.0
                             next_obs, infos = task.reset(self.seed)
@@ -517,16 +535,16 @@ class SLE_MTPPO():
 
         policy.train()
         # clear memory
-        rb_obs = torch.zeros((self.batch_size, self.obs_shape + self.num_tasks)).to(self.device)
+        rb_obs = torch.zeros((self.batch_finetune, self.obs_shape + self.num_tasks)).to(self.device)
         if self.continuous == True:
-            rb_actions = torch.zeros((self.batch_size, env.action_space.shape[0])).to(self.device)
+            rb_actions = torch.zeros((self.batch_finetune, env.action_space.shape[0])).to(self.device)
         else:
-            rb_actions = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_logprobs = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_rewards = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_advantages = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_terms = torch.zeros((self.batch_size, 1)).to(self.device)
-        rb_values = torch.zeros((self.batch_size, 1)).to(self.device)
+            rb_actions = torch.zeros((self.batch_finetune, 1)).to(self.device)
+        rb_logprobs = torch.zeros((self.batch_finetune, 1)).to(self.device)
+        rb_rewards = torch.zeros((self.batch_finetune, 1)).to(self.device)
+        rb_advantages = torch.zeros((self.batch_finetune, 1)).to(self.device)
+        rb_terms = torch.zeros((self.batch_finetune, 1)).to(self.device)
+        rb_values = torch.zeros((self.batch_finetune, 1)).to(self.device)
         
         '''
         # learning Rate annealing
@@ -548,7 +566,7 @@ class SLE_MTPPO():
             for i, task in enumerate(env.tasks): # 10
                 episodic_return = []
                     
-                for epoch in range(int((self.batch_size / self.num_tasks) / self.max_cycles)): # 10         
+                for epoch in range(int((self.batch_finetune / self.num_tasks) / self.max_cycles)): # 10         
 
                     next_obs, infos = task.reset(self.seed)
                     if self.normalize_states:
@@ -580,6 +598,7 @@ class SLE_MTPPO():
 
                         success = info.get('success', 0.0)
                         if success != 0.0:
+                            #print("!!!!!!!!!!", i, epoch, step, success)
                             if_success = True
                             term = 1.0
                             next_obs, infos = task.reset(self.seed)
@@ -686,7 +705,7 @@ class SLE_MTPPO():
     
     def logging(self, y, y_tasks, z, z_tasks, eval_fitness, eval_sr, eval_sr_tasks, runtimes):
         
-        path_to_exp = f"./logs/{self.name}_{self.num_tasks}tasks_{self.pop_size}agents_{self.batch_size}_{self.total_episodes}_{date.today()}/{self.seed}"
+        path_to_exp = f"./logs/{self.name}_{self.num_tasks}tasks_{self.pop_size}agents_{self.batch_merging}_{self.batch_finetune}_{self.total_episodes}_{date.today()}/{self.seed}"
         os.makedirs(path_to_exp, exist_ok=True)
         np.save(f"{path_to_exp}/training_returns.npy", np.array(y))  # [total_epi, pop_size]
         np.save(f"{path_to_exp}/training_tasks_return.npy", np.array(y_tasks))  # [total_epi, pop_size, num_tasks]

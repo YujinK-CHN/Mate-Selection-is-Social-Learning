@@ -22,22 +22,24 @@ df = pd.DataFrame(data)
 MT = 10
 POP = 3
 ###### SLE
-seed = [861]
-date = ['2024-10-23']
+seed = [861, 8611, 8612, 8613]
+date = ['2024-10-23', '2024-11-10', '2024-11-17', '2024-11-25']
+batch_merging = [50000, 50000, 30000, 70000]
+batch_finetune = [50000, 50000, 70000, 30000]
 seeds_sr_eval_sle = []
 seeds_sr_sle = []
 runtimes_sle = []
 mean_episodic_runtimes_sle = []
 max_sr_sle = []
 for i in range(len(seed)):
-    eval_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_50000_200_{date[i]}/{seed[i]}(done)/eval_returns.npy")
-    eval_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_50000_200_{date[i]}/{seed[i]}(done)/eval_sr.npy")
-    eval_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_50000_200_{date[i]}/{seed[i]}(done)/eval_tasks_sr.npy")
-    training_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_50000_200_{date[i]}/{seed[i]}(done)/training_returns.npy")
-    training_tasks_return = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_50000_200_{date[i]}/{seed[i]}(done)/training_tasks_return.npy")
-    training_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_50000_200_{date[i]}/{seed[i]}(done)/training_sr.npy")
-    training_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_50000_200_{date[i]}/{seed[i]}(done)/training_tasks_sr.npy")
-    runtimes = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_50000_200_{date[i]}/{seed[i]}(done)/runtimes.npy")
+    eval_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_returns.npy")
+    eval_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_sr.npy")
+    eval_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_tasks_sr.npy")
+    training_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_returns.npy")
+    training_tasks_return = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_tasks_return.npy")
+    training_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_sr.npy")
+    training_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_tasks_sr.npy")
+    runtimes = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/runtimes.npy")
 
     seeds_sr_eval_sle.append(np.max(eval_sr, axis=-1))
     seeds_sr_sle.append(np.max(training_sr, axis=-1))
@@ -49,18 +51,19 @@ for i in range(len(seed)):
 ###### MTPPO
 seed_mtppo = [861]
 date_mtppo = ['2024-10-31']
+batch_size = 300000
 seeds_sr_eval = []
 seeds_sr = []
 runtimes_mtppo = []
 mean_episodic_runtimes_mtppo = []
 max_sr_mtppo = []
-for i in range(len(seed)):
-    eval_returns = np.load(f"logs/mtppo_{MT}_300000_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/eval_returns_{seed_mtppo[i]}.npy")
-    train_returns = np.load(f"logs/mtppo_{MT}_300000_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/train_returns_{seed_mtppo[i]}.npy")
-    sr_eval = np.load(f"logs/mtppo_{MT}_300000_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/sr_eval_{seed_mtppo[i]}.npy")
-    sr = np.load(f"logs/mtppo_{MT}_300000_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/sr_{seed_mtppo[i]}.npy")
-    tasks_sr = np.load(f"logs/mtppo_{MT}_300000_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/tasks_sr_{seed_mtppo[i]}.npy")
-    runtimes = np.load(f"logs/mtppo_{MT}_300000_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/runtimes_{seed_mtppo[i]}.npy")
+for i in range(len(seed_mtppo)):
+    eval_returns = np.load(f"logs/mtppo_{MT}_{batch_size}_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/eval_returns_{seed_mtppo[i]}.npy")
+    train_returns = np.load(f"logs/mtppo_{MT}_{batch_size}_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/train_returns_{seed_mtppo[i]}.npy")
+    sr_eval = np.load(f"logs/mtppo_{MT}_{batch_size}_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/sr_eval_{seed_mtppo[i]}.npy")
+    sr = np.load(f"logs/mtppo_{MT}_{batch_size}_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/sr_{seed_mtppo[i]}.npy")
+    tasks_sr = np.load(f"logs/mtppo_{MT}_{batch_size}_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/tasks_sr_{seed_mtppo[i]}.npy")
+    runtimes = np.load(f"logs/mtppo_{MT}_{batch_size}_16_200_{date_mtppo[i]}/{seed_mtppo[i]}(done)/runtimes_{seed_mtppo[i]}.npy")
 
     seeds_sr_eval.append(sr_eval)
     seeds_sr.append(sr)
@@ -135,16 +138,22 @@ def plot_for_model(seed_list, results, total_episodes, algo_name):
     plt.xlabel('Episodes')
     plt.ylabel('Success Rates')
     plt.legend(title='Seeds')
-    
+
 seed_indices = [0]
+seed_indices_sle = [0, 1, 2, 3]
+seed_indices_mtppo = [0]
 plot_general_performance(seed_indices)
-plot_for_model(np.array(seed)[seed_indices], np.array(seeds_sr_sle)[seed_indices], 200, 'SLE(ours)')
-plot_for_model(np.array(seed)[seed_indices], np.array(seeds_sr)[seed_indices], 200, 'MTPPO')
+plot_for_model(np.array(seed)[seed_indices_sle], np.array(seeds_sr_sle)[seed_indices_sle], 200, 'SLE(ours)')
+plot_for_model(np.array(seed)[seed_indices_mtppo], np.array(seeds_sr)[seed_indices_mtppo], 200, 'MTPPO')
 plt.show()
 
-print('Mean episodic runtimes (per seed) for SLE: ', np.array(mean_episodic_runtimes_sle)[seed_indices])
-print('Mean episodic runtimes (per seed) for MTPPO: ', np.array(mean_episodic_runtimes_mtppo)[seed_indices])
-print('Total runtimes (per seed) for SLE: ', np.array(runtimes_sle)[seed_indices])
-print('Total runtimes (per seed) for MTPPO: ', np.array(runtimes_mtppo)[seed_indices])
-print('Maximum task success rate ever (per seed) for SLE: ', np.array(max_sr_sle)[seed_indices])
-print('Maximum task success rate ever (per seed) for MTPPO: ', np.array(max_sr_mtppo)[seed_indices])
+print('Mean episodic runtimes (per seed) for SLE: ', np.array(mean_episodic_runtimes_sle)[seed_indices_sle])
+print('Avg episodic runtimes (all seeds) for SLE: ', np.array(mean_episodic_runtimes_sle)[seed_indices_sle].mean(axis=0))
+print('Mean episodic runtimes (per seed) for MTPPO: ', np.array(mean_episodic_runtimes_mtppo)[seed_indices_mtppo])
+print('Avg episodic runtimes (all seeds) for MTPPO: ', np.array(mean_episodic_runtimes_mtppo)[seed_indices_mtppo].mean(axis=0))
+print('Total runtimes (per seed) for SLE: ', np.array(runtimes_sle)[seed_indices_sle])
+print('Total runtimes (per seed) for MTPPO: ', np.array(runtimes_mtppo)[seed_indices_mtppo])
+print('Maximum task success rate ever (per seed) for SLE: \n', np.round(np.array(max_sr_sle)[seed_indices_sle], 2))
+print('Maximum task success rate ever (per seed) for MTPPO: \n', np.round(np.array(max_sr_mtppo)[seed_indices_mtppo], 2))
+print(f'Avg maximum task success rate ever (all seeds) for SLE: \n {np.round(np.array(max_sr_sle)[seed_indices_sle].mean(axis=0), 2)}')
+print(f'Avg maximum task success rate ever (all seeds) for MTPPO: \n {np.round(np.array(max_sr_mtppo)[seed_indices_mtppo].mean(axis=0), 2)}')

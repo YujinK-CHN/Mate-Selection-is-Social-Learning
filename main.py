@@ -14,6 +14,7 @@ import metaworld
 import random
 import time
 
+torch.cuda.empty_cache()
 def set_seed(seed):
     """Set the random seed for reproducibility."""
     # Set seed for PyTorch
@@ -163,12 +164,14 @@ if __name__ == "__main__":
         'normalize_values': False,
         'normalize_rewards': True,
         'pop_size': 3,
+        'eta': 0.1,
         'ent_coef': 5e-3,
         'vf_coef': 0.1,
         'lr_clip_range': 0.2,
         'discount': 0.99,
         'gae_lambda': 0.97,
-        'batch_size': 50000,
+        'batch_merging': 50000,
+        'batch_finetune': 50000,
         'max_path_length': 500,
         'min_batch': 32, 
         'epoch_merging': 4,
@@ -199,19 +202,18 @@ if __name__ == "__main__":
     }
 
         
-    
-    
-
+    print("PyTorch version:", torch.__version__)
+    print(torch.cuda.is_available())
+    print(config['device'])
     """ ENV SETUP """
     # Random Seed(0): [0] 788x [1] 861 [2] 82 [3] 530 [4] 995 [5] 829
     seeds = random_seeds()
-    seeds_ppo = seeding('mtppo', seeds, config_mtppo)
+    #seeds_ppo = seeding('mtppo', seeds, config_mtppo)
     #run_seeds(seeds_ppo)
-    #training(config_mtsac, mtsac2)
     
     total_start_time = time.time()
-    training(config_mtppo, seeds_ppo[1])
-    #training(config, SLE_MTPPO(MultiTaskEnv(seeds[1]), config))
+    #training(config_mtppo, seeds_ppo[1])
+    training(config, SLE_MTPPO(MultiTaskEnv(seeds[2]), config))
     total_end_time = time.time()
     total_duration = total_end_time - total_start_time
     print(f"Total training runtime: {total_duration:.2f} seconds")
