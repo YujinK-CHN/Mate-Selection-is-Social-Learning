@@ -22,10 +22,10 @@ df = pd.DataFrame(data)
 MT = 10
 POP = 3
 ###### SLE
-seed = []
-date = []
-batch_merging = []
-batch_finetune = []
+seed = [861]
+date = ['2024-10-23']
+batch_merging = [50000]
+batch_finetune = [50000]
 seeds_sr_eval_sle = []
 seeds_sr_sle = []
 runtimes_sle = []
@@ -58,14 +58,14 @@ runtimes_sle2 = []
 mean_episodic_runtimes_sle2 = []
 max_sr_sle2 = []
 for i in range(len(seed2)):
-    eval_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_returns.npy")
-    eval_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_sr.npy")
-    eval_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_tasks_sr.npy")
-    training_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_returns.npy")
-    training_tasks_return = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_tasks_return.npy")
-    training_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_sr.npy")
-    training_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_tasks_sr.npy")
-    runtimes = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/runtimes.npy")
+    eval_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging2[i]}_{batch_finetune2[i]}_200_{date2[i]}/{seed2[i]}(done)/eval_returns.npy")
+    eval_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging2[i]}_{batch_finetune2[i]}_200_{date2[i]}/{seed2[i]}(done)/eval_sr.npy")
+    eval_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging2[i]}_{batch_finetune2[i]}_200_{date2[i]}/{seed2[i]}(done)/eval_tasks_sr.npy")
+    training_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging2[i]}_{batch_finetune2[i]}_200_{date2[i]}/{seed2[i]}(done)/training_returns.npy")
+    training_tasks_return = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging2[i]}_{batch_finetune2[i]}_200_{date2[i]}/{seed2[i]}(done)/training_tasks_return.npy")
+    training_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging2[i]}_{batch_finetune2[i]}_200_{date2[i]}/{seed2[i]}(done)/training_sr.npy")
+    training_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging2[i]}_{batch_finetune2[i]}_200_{date2[i]}/{seed2[i]}(done)/training_tasks_sr.npy")
+    runtimes = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging2[i]}_{batch_finetune2[i]}_200_{date2[i]}/{seed2[i]}(done)/runtimes.npy")
 
     seeds_sr_eval_sle2.append(np.max(eval_sr, axis=-1))
     seeds_sr_sle2.append(np.max(training_sr, axis=-1))
@@ -84,14 +84,14 @@ runtimes_sle3 = []
 mean_episodic_runtimes_sle3 = []
 max_sr_sle3 = []
 for i in range(len(seed3)):
-    eval_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_returns.npy")
-    eval_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_sr.npy")
-    eval_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_tasks_sr.npy")
-    training_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_returns.npy")
-    training_tasks_return = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_tasks_return.npy")
-    training_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_sr.npy")
-    training_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_tasks_sr.npy")
-    runtimes = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/runtimes.npy")
+    eval_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging3[i]}_{batch_finetune3[i]}_200_{date3[i]}/{seed3[i]}(done)/eval_returns.npy")
+    eval_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging3[i]}_{batch_finetune3[i]}_200_{date3[i]}/{seed3[i]}(done)/eval_sr.npy")
+    eval_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging3[i]}_{batch_finetune3[i]}_200_{date3[i]}/{seed3[i]}(done)/eval_tasks_sr.npy")
+    training_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging3[i]}_{batch_finetune3[i]}_200_{date3[i]}/{seed3[i]}(done)/training_returns.npy")
+    training_tasks_return = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging3[i]}_{batch_finetune3[i]}_200_{date3[i]}/{seed3[i]}(done)/training_tasks_return.npy")
+    training_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging3[i]}_{batch_finetune3[i]}_200_{date3[i]}/{seed3[i]}(done)/training_sr.npy")
+    training_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging3[i]}_{batch_finetune3[i]}_200_{date3[i]}/{seed3[i]}(done)/training_tasks_sr.npy")
+    runtimes = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging3[i]}_{batch_finetune3[i]}_200_{date3[i]}/{seed3[i]}(done)/runtimes.npy")
 
     seeds_sr_eval_sle3.append(np.max(eval_sr, axis=-1))
     seeds_sr_sle3.append(np.max(training_sr, axis=-1))
@@ -101,24 +101,24 @@ for i in range(len(seed3)):
     max_sr_sle3.append(seed_max_sr_sle3)
 
 ###### SLE-entropy
-seed11 = []
-date11 = []
-batch_merging11 = []
-batch_finetune11 = []
+seed11 = [86111]
+date11 = ['2024-11-10']
+batch_merging11 = [50000]
+batch_finetune11 = [50000]
 seeds_sr_eval_sle11 = []
 seeds_sr_sle11 = []
 runtimes_sle11 = []
 mean_episodic_runtimes_sle11 = []
 max_sr_sle11 = []
 for i in range(len(seed11)):
-    eval_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_returns.npy")
-    eval_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_sr.npy")
-    eval_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_tasks_sr.npy")
-    training_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_returns.npy")
-    training_tasks_return = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_tasks_return.npy")
-    training_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_sr.npy")
-    training_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_tasks_sr.npy")
-    runtimes = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/runtimes.npy")
+    eval_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging11[i]}_{batch_finetune11[i]}_200_{date11[i]}/{seed11[i]}(done)/eval_returns.npy")
+    eval_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging11[i]}_{batch_finetune11[i]}_200_{date11[i]}/{seed11[i]}(done)/eval_sr.npy")
+    eval_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging11[i]}_{batch_finetune11[i]}_200_{date11[i]}/{seed11[i]}(done)/eval_tasks_sr.npy")
+    training_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging11[i]}_{batch_finetune11[i]}_200_{date11[i]}/{seed11[i]}(done)/training_returns.npy")
+    training_tasks_return = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging11[i]}_{batch_finetune11[i]}_200_{date11[i]}/{seed11[i]}(done)/training_tasks_return.npy")
+    training_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging11[i]}_{batch_finetune11[i]}_200_{date11[i]}/{seed11[i]}(done)/training_sr.npy")
+    training_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging11[i]}_{batch_finetune11[i]}_200_{date11[i]}/{seed11[i]}(done)/training_tasks_sr.npy")
+    runtimes = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging11[i]}_{batch_finetune11[i]}_200_{date11[i]}/{seed11[i]}(done)/runtimes.npy")
 
     seeds_sr_eval_sle11.append(np.max(eval_sr, axis=-1))
     seeds_sr_sle11.append(np.max(training_sr, axis=-1))
@@ -127,24 +127,24 @@ for i in range(len(seed11)):
     seed_max_sr_sle1 = np.max(training_tasks_sr, axis=0)[0]
     max_sr_sle11.append(seed_max_sr_sle1)
 
-seed12 = []
-date12 = []
-batch_merging12 = []
-batch_finetune12 = []
+seed12 = [86112]
+date12 = ['2024-11-17']
+batch_merging12 = [30000]
+batch_finetune12 = [70000]
 seeds_sr_eval_sle12 = []
 seeds_sr_sle12 = []
 runtimes_sle12 = []
 mean_episodic_runtimes_sle12 = []
 max_sr_sle12 = []
 for i in range(len(seed12)):
-    eval_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_returns.npy")
-    eval_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_sr.npy")
-    eval_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_tasks_sr.npy")
-    training_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_returns.npy")
-    training_tasks_return = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_tasks_return.npy")
-    training_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_sr.npy")
-    training_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_tasks_sr.npy")
-    runtimes = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/runtimes.npy")
+    eval_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging12[i]}_{batch_finetune12[i]}_200_{date12[i]}/{seed12[i]}(done)/eval_returns.npy")
+    eval_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging12[i]}_{batch_finetune12[i]}_200_{date12[i]}/{seed12[i]}(done)/eval_sr.npy")
+    eval_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging12[i]}_{batch_finetune12[i]}_200_{date12[i]}/{seed12[i]}(done)/eval_tasks_sr.npy")
+    training_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging12[i]}_{batch_finetune12[i]}_200_{date12[i]}/{seed12[i]}(done)/training_returns.npy")
+    training_tasks_return = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging12[i]}_{batch_finetune12[i]}_200_{date12[i]}/{seed12[i]}(done)/training_tasks_return.npy")
+    training_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging12[i]}_{batch_finetune12[i]}_200_{date12[i]}/{seed12[i]}(done)/training_sr.npy")
+    training_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging12[i]}_{batch_finetune12[i]}_200_{date12[i]}/{seed12[i]}(done)/training_tasks_sr.npy")
+    runtimes = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging12[i]}_{batch_finetune12[i]}_200_{date12[i]}/{seed12[i]}(done)/runtimes.npy")
 
     seeds_sr_eval_sle12.append(np.max(eval_sr, axis=-1))
     seeds_sr_sle12.append(np.max(training_sr, axis=-1))
@@ -153,24 +153,24 @@ for i in range(len(seed12)):
     seed_max_sr_sle12 = np.max(training_tasks_sr, axis=0)[0]
     max_sr_sle12.append(seed_max_sr_sle12)
 
-seed13 = []
-date13 = []
-batch_merging13 = []
-batch_finetune13 = []
+seed13 = [86113]
+date13 = ['2024-11-25']
+batch_merging13 = [70000]
+batch_finetune13 = [30000]
 seeds_sr_eval_sle13 = []
 seeds_sr_sle13 = []
 runtimes_sle13 = []
 mean_episodic_runtimes_sle13 = []
 max_sr_sle13 = []
 for i in range(len(seed13)):
-    eval_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_returns.npy")
-    eval_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_sr.npy")
-    eval_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/eval_tasks_sr.npy")
-    training_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_returns.npy")
-    training_tasks_return = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_tasks_return.npy")
-    training_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_sr.npy")
-    training_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/training_tasks_sr.npy")
-    runtimes = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging[i]}_{batch_finetune[i]}_200_{date[i]}/{seed[i]}(done)/runtimes.npy")
+    eval_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging13[i]}_{batch_finetune13[i]}_200_{date13[i]}/{seed13[i]}(done)/eval_returns.npy")
+    eval_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging13[i]}_{batch_finetune13[i]}_200_{date13[i]}/{seed13[i]}(done)/eval_sr.npy")
+    eval_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging13[i]}_{batch_finetune13[i]}_200_{date13[i]}/{seed13[i]}(done)/eval_tasks_sr.npy")
+    training_returns = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging13[i]}_{batch_finetune13[i]}_200_{date13[i]}/{seed13[i]}(done)/training_returns.npy")
+    training_tasks_return = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging13[i]}_{batch_finetune13[i]}_200_{date13[i]}/{seed13[i]}(done)/training_tasks_return.npy")
+    training_sr = np.load(f"logs/sle-mtppo_{MT}tasks_{POP}agents_{batch_merging13[i]}_{batch_finetune13[i]}_200_{date13[i]}/{seed13[i]}(done)/training_sr.npy")
+    training_tasks_sr = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging13[i]}_{batch_finetune13[i]}_200_{date13[i]}/{seed13[i]}(done)/training_tasks_sr.npy")
+    runtimes = np.load(f"logs/sle-mtppo_{MT}tasks_3agents_{batch_merging13[i]}_{batch_finetune13[i]}_200_{date13[i]}/{seed13[i]}(done)/runtimes.npy")
 
     seeds_sr_eval_sle13.append(np.max(eval_sr, axis=-1))
     seeds_sr_sle13.append(np.max(training_sr, axis=-1))
