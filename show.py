@@ -291,7 +291,7 @@ def plot_for_model(seed_list, results, total_episodes, algo_name):
     plt.legend(title='Seeds')
 
 seed_indices = [0, 1, 2, 3, 4]
-seed_indices_sle = [0, 1, 2, 3]
+seed_indices_sle = [0, 1, 2, 3, 4]
 seed_indices_mtppo = [0, 1, 2, 3, 4]
 plot_general_performance(seed_indices)
 plot_for_model(np.array(seed)[seed_indices_sle], np.array(seeds_sr_sle)[seed_indices_sle], 200, 'SLE(ours)')
@@ -300,13 +300,13 @@ plot_for_model(np.array(seed3)[seed_indices_sle], np.array(seeds_sr_sle3)[seed_i
 plot_for_model(np.array(seed)[seed_indices_mtppo], np.array(seeds_sr)[seed_indices_mtppo], 200, 'MTPPO')
 plt.show()
 
-print('Mean episodic runtimes (per seed) for SLE: ', np.array(mean_episodic_runtimes_sle)[seed_indices_sle])
-print('Avg episodic runtimes (all seeds) for SLE: ', np.array(mean_episodic_runtimes_sle)[seed_indices_sle].mean(axis=0))
+print('Mean episodic runtimes (per seed) for SLE: ', np.array(mean_episodic_runtimes_sle3)[seed_indices_sle])
+print('Avg episodic runtimes (all seeds) for SLE: ', np.array(mean_episodic_runtimes_sle3)[seed_indices_sle].mean(axis=0))
 print('Mean episodic runtimes (per seed) for MTPPO: ', np.array(mean_episodic_runtimes_mtppo)[seed_indices_mtppo])
 print('Avg episodic runtimes (all seeds) for MTPPO: ', np.array(mean_episodic_runtimes_mtppo)[seed_indices_mtppo].mean(axis=0))
-print('Total runtimes (per seed) for SLE: ', np.array(runtimes_sle)[seed_indices_sle])
+print('Total runtimes (per seed) for SLE: ', np.array(runtimes_sle3)[seed_indices_sle])
 print('Total runtimes (per seed) for MTPPO: ', np.array(runtimes_mtppo)[seed_indices_mtppo])
-print('Maximum task success rate ever (per seed) for SLE: \n', np.round(np.array(max_sr_sle)[seed_indices_sle], 2))
+print('Maximum task success rate ever (per seed) for SLE: \n', np.round(np.array(max_sr_sle3)[seed_indices_sle], 2))
 print('Maximum task success rate ever (per seed) for MTPPO: \n', np.round(np.array(max_sr_mtppo)[seed_indices_mtppo], 2))
-print(f'Avg maximum task success rate ever (all seeds) for SLE: \n {np.round(np.array(max_sr_sle)[seed_indices_sle].mean(axis=0), 2)}')
+print(f'Avg maximum task success rate ever (all seeds) for SLE: \n {np.round(np.array(max_sr_sle3)[seed_indices_sle].mean(axis=0), 2)}')
 print(f'Avg maximum task success rate ever (all seeds) for MTPPO: \n {np.round(np.array(max_sr_mtppo)[seed_indices_mtppo].mean(axis=0), 2)}')
