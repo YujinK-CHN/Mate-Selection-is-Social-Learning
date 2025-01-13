@@ -47,9 +47,9 @@ for i in range(len(seed)):
     mean_episodic_runtimes_sle.append(np.mean(runtimes))
     seed_max_sr_sle = np.max(training_tasks_sr, axis=0)[0]
     max_sr_sle.append(seed_max_sr_sle)
-'''
+
 seed2 = [8612, 822, 5302, 9952, 8292]
-date2 = ['2024-12-13', '2024-12-17', '2025-01-28', '2025-01-28', '2025-01-17']
+date2 = ['2024-12-13', '2024-12-17', '2025-01-09', '2025-01-10', '2025-01-12']
 batch_merging2 = [30000, 30000, 30000, 30000, 30000]
 batch_finetune2 = [70000, 70000, 70000, 70000, 70000]
 seeds_sr_eval_sle2 = []
@@ -73,7 +73,7 @@ for i in range(len(seed2)):
     mean_episodic_runtimes_sle2.append(np.mean(runtimes))
     seed_max_sr_sle2 = np.max(training_tasks_sr, axis=0)[0]
     max_sr_sle2.append(seed_max_sr_sle2)
-'''
+
 seed3 = [8613, 823, 5303, 9953, 8293]
 date3 = ['2024-12-17', '2025-01-02', '2024-12-28', '2024-12-28', '2025-01-06']
 batch_merging3 = [70000, 70000, 70000, 70000, 70000]
@@ -216,6 +216,16 @@ def plot_general_performance(seed_indices):
         'model': 'SLE (ours)'
     })
 
+    print(np.array(seeds_sr_sle2)[seed_indices].shape)
+    print(np.array(seed2)[seed_indices])
+    epochs_model_sle2 = np.tile(np.arange(0, 200), (len(seed_indices), 1))
+    df_model_sle2 = pd.DataFrame({
+        'epoch': epochs_model_sle2.flatten(),
+        'metric': np.array(seeds_sr_sle2)[seed_indices].flatten(),
+        'seed': np.repeat(np.array(seed2)[seed_indices], 200),
+        'model': 'SLE-finetune (ours)'
+    })
+
     print(np.array(seeds_sr_sle3)[seed_indices].shape)
     print(np.array(seed3)[seed_indices])
     epochs_model_sle3 = np.tile(np.arange(0, 200), (len(seed_indices), 1))
@@ -236,7 +246,7 @@ def plot_general_performance(seed_indices):
     })
 
     # Combine both models into one DataFrame
-    df_combined = pd.concat([df_model_sle, df_model_sle3, df_model_mtppo])
+    df_combined = pd.concat([df_model_sle, df_model_sle2, df_model_sle3, df_model_mtppo])
 
     # Plot with Seaborn (comparison between models)
     plt.figure(figsize=(10, 6))
@@ -281,10 +291,11 @@ def plot_for_model(seed_list, results, total_episodes, algo_name):
     plt.legend(title='Seeds')
 
 seed_indices = [0, 1, 2, 3, 4]
-seed_indices_sle = [0, 1, 2, 3, 4]
+seed_indices_sle = [0, 1, 2, 3]
 seed_indices_mtppo = [0, 1, 2, 3, 4]
 plot_general_performance(seed_indices)
 plot_for_model(np.array(seed)[seed_indices_sle], np.array(seeds_sr_sle)[seed_indices_sle], 200, 'SLE(ours)')
+plot_for_model(np.array(seed2)[seed_indices_sle], np.array(seeds_sr_sle2)[seed_indices_sle], 200, 'SLE-finetune(ours)')
 plot_for_model(np.array(seed3)[seed_indices_sle], np.array(seeds_sr_sle3)[seed_indices_sle], 200, 'SLE-merge(ours)')
 plot_for_model(np.array(seed)[seed_indices_mtppo], np.array(seeds_sr)[seed_indices_mtppo], 200, 'MTPPO')
 plt.show()
