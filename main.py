@@ -181,26 +181,6 @@ if __name__ == "__main__":
         'lr': 0.0005
     }
 
-    config_mtsac = {
-        'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        'hidden_dim': (400, 400),  # from hidden_sizes
-        'discount': 0.99,  # discount
-        'tau': 5e-3,  # target_update_tau
-        'alpha': 0.2,  # entropy regularization
-        'buffer_capacity': 50000,  # or larger based on your needs
-        'batch_size': 5000,
-        'policy_lr': 3e-4,  # policy_lr
-        'qf_lr': 3e-4,  # qf_lr
-        'min_std': -20,  # min_std
-        'max_std':  2,  # max_std
-        'gradient_steps_per_itr': 500,  # gradient_steps_per_itr
-        'epoch_opt': 200,
-        'total_episodes': 500,
-        'min_buffer_size': 1500,  # min_buffer_size
-        'use_automatic_entropy_tuning': True,  # use_automatic_entropy_tuning
-        'max_path_length': 500
-    }
-
         
     print("PyTorch version:", torch.__version__)
     print(torch.cuda.is_available())
