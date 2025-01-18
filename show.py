@@ -205,6 +205,7 @@ for i in range(len(seed_mtppo)):
 
 
 def plot_general_performance(seed_indices):
+    '''
     # Prepare the data for model 1 (200 epochs)
     print(np.array(seeds_sr_sle)[seed_indices].shape)
     print(np.array(seed)[seed_indices])
@@ -213,9 +214,9 @@ def plot_general_performance(seed_indices):
         'epoch': epochs_model_sle.flatten(),
         'metric': np.array(seeds_sr_sle)[seed_indices].flatten(),
         'seed': np.repeat(np.array(seed)[seed_indices], 200),
-        'model': 'SLE (ours)'
+        'model': 'SLE-Infer'
     })
-
+    
     print(np.array(seeds_sr_sle2)[seed_indices].shape)
     print(np.array(seed2)[seed_indices])
     epochs_model_sle2 = np.tile(np.arange(0, 200), (len(seed_indices), 1))
@@ -223,7 +224,7 @@ def plot_general_performance(seed_indices):
         'epoch': epochs_model_sle2.flatten(),
         'metric': np.array(seeds_sr_sle2)[seed_indices].flatten(),
         'seed': np.repeat(np.array(seed2)[seed_indices], 200),
-        'model': 'SLE-finetune (ours)'
+        'model': 'SLE-Infer(merge)'
     })
 
     print(np.array(seeds_sr_sle3)[seed_indices].shape)
@@ -233,7 +234,7 @@ def plot_general_performance(seed_indices):
         'epoch': epochs_model_sle3.flatten(),
         'metric': np.array(seeds_sr_sle3)[seed_indices].flatten(),
         'seed': np.repeat(np.array(seed3)[seed_indices], 200),
-        'model': 'SLE-merge (ours)'
+        'model': 'SLE-Infer(finetune)'
     })
 
     # Prepare the data for model 2 (200 epochs)
@@ -244,9 +245,40 @@ def plot_general_performance(seed_indices):
         'seed': np.repeat(np.array(seed_mtppo)[seed_indices], 200),
         'model': 'MTPPO'
     })
+    '''
 
+    print(np.array(seeds_sr_sle11)[seed_indices].shape)
+    print(np.array(seed11)[seed_indices])
+    epochs_model_sle11 = np.tile(np.arange(0, 200), (len(seed_indices), 1))
+    df_model_sle11 = pd.DataFrame({
+        'epoch': epochs_model_sle11.flatten(),
+        'metric': np.array(seeds_sr_sle11)[seed_indices].flatten(),
+        'seed': np.repeat(np.array(seed11)[seed_indices], 200),
+        'model': 'SLE-Entropy'
+    })
+
+    print(np.array(seeds_sr_sle12)[seed_indices].shape)
+    print(np.array(seed12)[seed_indices])
+    epochs_model_sle12 = np.tile(np.arange(0, 200), (len(seed_indices), 1))
+    df_model_sle12 = pd.DataFrame({
+        'epoch': epochs_model_sle12.flatten(),
+        'metric': np.array(seeds_sr_sle12)[seed_indices].flatten(),
+        'seed': np.repeat(np.array(seed12)[seed_indices], 200),
+        'model': 'SLE-Entropy(merge)'
+    })
+
+    print(np.array(seeds_sr_sle13)[seed_indices].shape)
+    print(np.array(seed13)[seed_indices])
+    epochs_model_sle13 = np.tile(np.arange(0, 200), (len(seed_indices), 1))
+    df_model_sle13 = pd.DataFrame({
+        'epoch': epochs_model_sle13.flatten(),
+        'metric': np.array(seeds_sr_sle13)[seed_indices].flatten(),
+        'seed': np.repeat(np.array(seed13)[seed_indices], 200),
+        'model': 'SLE-Entropy(finetune)'
+    })
+    
     # Combine both models into one DataFrame
-    df_combined = pd.concat([df_model_sle, df_model_sle2, df_model_sle3, df_model_mtppo])
+    df_combined = pd.concat([df_model_sle11, df_model_sle12, df_model_sle13]) #,df_model_sle11, df_model_sle12, df_model_sle13
 
     # Plot with Seaborn (comparison between models)
     plt.figure(figsize=(10, 6))
@@ -258,8 +290,12 @@ def plot_general_performance(seed_indices):
         ci='sd'  # Standard deviation as shaded area
     )
 
+    # Add a baseline (horizontal line)
+    baseline = 0.15
+    plt.axhline(y=baseline, color='grey', linestyle='--', linewidth=1, label='PPO benchmark (Metaworld)')
+
     # Customize the plot
-    plt.title(f'SLE (Ours) vs MTPPO Results (n={len(seed_indices)} seeds {np.array(seed)[seed_indices]})')
+    plt.title(f'Example results using Interference Score') #(n={len(seed_indices)} seeds {np.array(seed)[seed_indices]})
     plt.xlabel('Episodes')
     plt.ylabel('Success Rates')
     plt.legend(title='Model')
@@ -290,15 +326,15 @@ def plot_for_model(seed_list, results, total_episodes, algo_name):
     plt.ylabel('Success Rates')
     plt.legend(title='Seeds')
 
-seed_indices = [0, 1, 2, 3, 4]
+seed_indices = [0]
 seed_indices_sle = [0, 1, 2, 3, 4]
 seed_indices_mtppo = [0, 1, 2, 3, 4]
-plot_general_performance(seed_indices)
-plot_for_model(np.array(seed)[seed_indices_sle], np.array(seeds_sr_sle)[seed_indices_sle], 200, 'SLE(ours)')
-plot_for_model(np.array(seed2)[seed_indices_sle], np.array(seeds_sr_sle2)[seed_indices_sle], 200, 'SLE-finetune(ours)')
-plot_for_model(np.array(seed3)[seed_indices_sle], np.array(seeds_sr_sle3)[seed_indices_sle], 200, 'SLE-merge(ours)')
-plot_for_model(np.array(seed)[seed_indices_mtppo], np.array(seeds_sr)[seed_indices_mtppo], 200, 'MTPPO')
-plt.show()
+#plot_general_performance(seed_indices)
+#plot_for_model(np.array(seed)[seed_indices_sle], np.array(seeds_sr_sle)[seed_indices_sle], 200, 'SLE(ours)')
+#plot_for_model(np.array(seed2)[seed_indices_sle], np.array(seeds_sr_sle2)[seed_indices_sle], 200, 'SLE-finetune(ours)')
+#plot_for_model(np.array(seed3)[seed_indices_sle], np.array(seeds_sr_sle3)[seed_indices_sle], 200, 'SLE-merge(ours)')
+#plot_for_model(np.array(seed)[seed_indices_mtppo], np.array(seeds_sr)[seed_indices_mtppo], 200, 'MTPPO')
+#plt.show()
 
 print('Mean episodic runtimes (per seed) for SLE: ', np.array(mean_episodic_runtimes_sle3)[seed_indices_sle])
 print('Avg episodic runtimes (all seeds) for SLE: ', np.array(mean_episodic_runtimes_sle3)[seed_indices_sle].mean(axis=0))
@@ -308,5 +344,27 @@ print('Total runtimes (per seed) for SLE: ', np.array(runtimes_sle3)[seed_indice
 print('Total runtimes (per seed) for MTPPO: ', np.array(runtimes_mtppo)[seed_indices_mtppo])
 print('Maximum task success rate ever (per seed) for SLE: \n', np.round(np.array(max_sr_sle3)[seed_indices_sle], 2))
 print('Maximum task success rate ever (per seed) for MTPPO: \n', np.round(np.array(max_sr_mtppo)[seed_indices_mtppo], 2))
-print(f'Avg maximum task success rate ever (all seeds) for SLE: \n {np.round(np.array(max_sr_sle3)[seed_indices_sle].mean(axis=0), 2)}')
+print(f'Avg maximum task success rate ever (all seeds) for SLE: \n {np.round(np.array(max_sr_sle)[seed_indices_sle].mean(axis=0), 2)}')
 print(f'Avg maximum task success rate ever (all seeds) for MTPPO: \n {np.round(np.array(max_sr_mtppo)[seed_indices_mtppo].mean(axis=0), 2)}')
+
+def plot_bar(vector1, vector2):
+    # Define bar width and positions
+    bar_width = 0.25
+    x = np.arange(len(vector1))  # X positions for the groups
+    labels = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']  # Labels for each pair
+
+    # Create the bar plots
+    plt.bar(x - bar_width / 2, vector1, width=bar_width, color='blue', label='SLE (Ours)')
+    plt.bar(x + bar_width / 2, vector2, width=bar_width, color='orange', label='MTPPO')
+
+    # Add labels, legend, and title
+    plt.xlabel('Task IDs')
+    plt.ylabel('Success Rates')
+    plt.title('Avg maximum task success rates ever (n=5 seeds)')
+    plt.xticks(x, labels)  # Set x-axis labels
+    plt.legend()
+    
+
+plot_bar(np.round(np.array(max_sr_sle3)[seed_indices_sle].mean(axis=0), 2), np.round(np.array(max_sr_mtppo)[seed_indices_mtppo].mean(axis=0), 2))
+plt.tight_layout()
+plt.show()
