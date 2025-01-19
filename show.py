@@ -351,15 +351,19 @@ print('Maximum task success rate ever (per seed) for MTPPO: \n', np.round(np.arr
 print(f'Avg maximum task success rate ever (all seeds) for SLE: \n {np.round(np.array(max_sr_sle)[seed_indices_sle].mean(axis=0), 2)}')
 print(f'Avg maximum task success rate ever (all seeds) for MTPPO: \n {np.round(np.array(max_sr_mtppo)[seed_indices_mtppo].mean(axis=0), 2)}')
 '''
-def plot_bar(vector1, vector2):
+def plot_bar(vector1, vector2, vector3, vector4):
     # Define bar width and positions
-    bar_width = 0.25
+    bar_width = 0.1
     x = np.arange(len(vector1))  # X positions for the groups
     labels = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']  # Labels for each pair
+    plt.figure(figsize=(12, 6))  # Increase the width of the plot
 
     # Create the bar plots
-    plt.bar(x - bar_width / 2, vector1, width=bar_width, color='blue', label='SLE (Ours)')
-    plt.bar(x + bar_width / 2, vector2, width=bar_width, color='orange', label='MTPPO')
+    plt.bar(x - 1.5 * bar_width, vector1, width=bar_width, color='blue', label='SLE(Ours)')
+    plt.bar(x - 0.5 * bar_width, vector2, width=bar_width, color='orange', label='SLE-finetune(Ours)')
+    plt.bar(x + 0.5 * bar_width, vector3, width=bar_width, color='green', label='SLE-merge(Ours)')
+    plt.bar(x + 1.5 * bar_width, vector4, width=bar_width, color='red', label='MTPPO')
+
 
     # Add labels, legend, and title
     plt.xlabel('Task IDs')
@@ -421,8 +425,14 @@ def plot_slope():
     plt.legend(title='Model')
     
 '''
-plot_bar(np.round(np.array(max_sr_sle3)[seed_indices_sle].mean(axis=0), 2), np.round(np.array(max_sr_mtppo)[seed_indices_mtppo].mean(axis=0), 2))
-plt.tight_layout()
-'''
+
 plot_slope()
+'''
+
+plot_bar(np.round(np.array(max_sr_sle)[seed_indices_sle].mean(axis=0), 2),
+            np.round(np.array(max_sr_sle2)[seed_indices_mtppo].mean(axis=0), 2),
+            np.round(np.array(max_sr_sle3)[seed_indices_mtppo].mean(axis=0), 2),
+            np.round(np.array(max_sr_mtppo)[seed_indices_mtppo].mean(axis=0), 2)
+            )
+plt.tight_layout()
 plt.show()
